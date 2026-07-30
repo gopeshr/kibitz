@@ -16,10 +16,17 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -95,6 +102,21 @@ fun BoardScreen(
             } else {
                 null
             },
+            // Board actions live behind the overflow rather than in a row of buttons under the
+            // board. Resign is rare and cannot be taken back, so it does not deserve a
+            // permanent third of the width next to things pressed all the time — and the row
+            // it used to sit in was the first casualty on a short screen.
+            actions = {
+                BoardMenu(
+                    againstEngine = engineSide != null,
+                    canResign = viewModel.canResign,
+                    canUndo = viewModel.canUndo,
+                    onFlip = viewModel::flipBoard,
+                    onNewGame = onNewGame ?: viewModel::newGame,
+                    onResign = { confirmResign = true },
+                    onUndo = viewModel::undo,
+                )
+            },
         )
 
         // The board gets the height that is left over after the fixed chrome, and is centred
@@ -147,41 +169,6 @@ fun BoardScreen(
         }
 
         MoveLog(moveLog = viewModel.moveLog)
-
-        Spacer(Modifier.height(12.dp))
-
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(
-                // "New" means choosing an opponent, not silently dropping to a board with
-                // nobody on the other side.
-                onClick = onNewGame ?: viewModel::newGame,
-                modifier = Modifier.weight(1f),
-            ) {
-                Text("New")
-            }
-            OutlinedButton(onClick = viewModel::flipBoard, modifier = Modifier.weight(1f)) {
-                Text("Flip")
-            }
-            if (engineSide != null) {
-                // Undo is meaningless against an opponent, so the slot carries the action that
-                // a losing position actually needs.
-                OutlinedButton(
-                    onClick = { confirmResign = true },
-                    enabled = viewModel.canResign,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text("Resign")
-                }
-            } else {
-                OutlinedButton(
-                    onClick = viewModel::undo,
-                    enabled = viewModel.canUndo,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text("Undo")
-                }
-            }
-        }
     }
 
     viewModel.promotionPrompt?.let {
@@ -294,6 +281,7 @@ private fun StatusHeader(
     status: Status,
     evaluation: EvalSnapshot?,
     onShowResult: (() -> Unit)? = null,
+    actions: (@Composable () -> Unit)? = null,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         // A dot in the colour of whoever is on the clock.
@@ -326,6 +314,94 @@ private fun StatusHeader(
             }
         }
         EvalReadout(evaluation)
+        actions?.invoke()
+    }
+}
+
+/**
+ * The board's overflow menu: everything that acts on the game rather than on a piece.
+ *
+ * Resign is separated below a divider and carries a warning colour, because it is the one entry
+ * here that ends the game and cannot be undone. It stays visible but disabled before the first
+ * move, so it reads as "not yet" rather than as missing.
+ */
+@Composable
+private fun BoardMenu(
+    againstEngine: Boolean,
+    canResign: Boolean,
+    canUndo: Boolean,
+    onFlip: () -> Unit,
+    onNewGame: () -> Unit,
+    onResign: () -> Unit,
+    onUndo: () -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box {
+        IconButton(onClick = { expanded = true }) {
+            Icon(
+                imageVector = Icons.Default.MoreVert,
+                contentDescription = "Game options",
+                tint = Muted,
+            )
+        }
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            containerColor = Surface2,
+        ) {
+            DropdownMenuItem(
+                text = { Text("Flip board", color = Parchment, fontSize = 14.sp) },
+                onClick = {
+                    expanded = false
+                    onFlip()
+                },
+            )
+            DropdownMenuItem(
+                // "New" means choosing an opponent, not silently dropping to a board with
+                // nobody on the other side.
+                text = { Text("New opponent", color = Parchment, fontSize = 14.sp) },
+                onClick = {
+                    expanded = false
+                    onNewGame()
+                },
+            )
+            if (!againstEngine) {
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = "Undo move",
+                            color = if (canUndo) Parchment else Muted,
+                            fontSize = 14.sp,
+                        )
+                    },
+                    enabled = canUndo,
+                    onClick = {
+                        expanded = false
+                        onUndo()
+                    },
+                )
+                return@DropdownMenu
+            }
+
+            HorizontalDivider(color = Surface1)
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        text = "Resign",
+                        color = if (canResign) Bad else Muted,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                },
+                enabled = canResign,
+                onClick = {
+                    expanded = false
+                    onResign()
+                },
+            )
+        }
     }
 }
 
