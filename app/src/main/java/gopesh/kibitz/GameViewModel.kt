@@ -277,6 +277,32 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }.isSuccess
 
     /**
+     * Starts an ordinary game against the engine at [level].
+     *
+     * The difference from [startAssessment] is only that no target is set, which turns the
+     * coaching off: a game you are playing for its own sake should not stop after thirty moves
+     * or narrate every move back at you. The reply machinery is the same.
+     */
+    fun startGame(level: OpponentLevel, playerIsWhite: Boolean = true) {
+        resetBoard()
+        assessments.clear()
+        assessedFens.clear()
+        assessedUcis.clear()
+        levelEstimate = null
+        assessmentComplete = false
+        assessmentTarget = 0
+        opponentLevel = level
+        engineSide = if (playerIsWhite) Color.BLACK else Color.WHITE
+        // Sit behind your own pieces whichever colour you took.
+        flipped = !playerIsWhite
+
+        // With White, the engine has to open before the player can do anything.
+        if (!playerIsWhite) {
+            viewModelScope.launch { playEngineReply() }
+        }
+    }
+
+    /**
      * Starts the level-assessment game. The player takes White so they move first and the
      * opening is theirs to choose, which says more about them than replying to the engine.
      */

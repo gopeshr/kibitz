@@ -59,10 +59,7 @@ fun KibitzApp(
                     estimate = estimate,
                     gamesRecorded = game.gamesRecorded,
                     allTimeAccuracy = game.allTimeAccuracy,
-                    onStartPlaying = {
-                        game.newGame()
-                        app.goToPlay()
-                    },
+                    onStartPlaying = app::goToNewGame,
                     onPlayAgain = {
                         game.startAssessment()
                         app.retakeAssessment()
@@ -71,6 +68,16 @@ fun KibitzApp(
             }
         }
 
+        Route.NEW_GAME -> NewGameScreen(
+            profile = profile,
+            onStart = { level, playerIsWhite ->
+                game.startGame(level, playerIsWhite)
+                app.goToPlay()
+            },
+            // Only offer a way back once a game is actually in progress to go back to.
+            onCancel = if (game.engineSide != null) app::goToPlay else null,
+        )
+
         Route.PLAY -> BoardScreen(
             viewModel = game,
             profile = profile,
@@ -78,6 +85,7 @@ fun KibitzApp(
                 game.startAssessment()
                 app.retakeAssessment()
             },
+            onNewGame = app::goToNewGame,
         )
     }
 }

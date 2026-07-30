@@ -19,9 +19,11 @@ Kotlin + Jetpack Compose, with Stockfish 18 as the engine.
   *Blunder*, with what would have been stronger.
 - **Training history** — every judged move stored in Room with the position it was played
   from, so past mistakes can be replayed as puzzles.
+- **Play Kibitz at your level** — an opponent ladder from Beginner to full strength, limited
+  properly through Stockfish's own `UCI_Elo` rather than by making it blunder on purpose. The
+  level nearest your estimated rating is preselected. Either colour, or random.
 
-Not done yet: no engine opponent outside the level check, no LLM coaching layer, no drills built
-from the stored mistakes.
+Not done yet: no LLM coaching layer, and no drills built from the stored mistakes.
 
 ## How the level bands were calibrated
 

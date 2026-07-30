@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -55,9 +56,12 @@ fun BoardScreen(
     viewModel: GameViewModel = viewModel(),
     profile: UserProfile? = null,
     onRetakeAssessment: (() -> Unit)? = null,
+    onNewGame: (() -> Unit)? = null,
 ) {
     val position = viewModel.position
     val status = viewModel.status
+    val engineSide = viewModel.engineSide
+    val playerIsWhite = engineSide != SideColor.WHITE
 
     Column(
         modifier = Modifier
@@ -81,7 +85,41 @@ fun BoardScreen(
         // between the header and the controls, on any screen.
         Spacer(Modifier.weight(1f))
 
-        BoardWithEvalBar(game = viewModel, modifier = Modifier.fillMaxWidth())
+        // With an engine opponent the board gets name plates, the same way the level check
+        // does, so it is always clear who is on the clock and how strong they are.
+        if (engineSide != null) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                PlayerStrip(
+                    name = "Kibitz",
+                    subtitle = if (viewModel.engineThinking) {
+                        "Thinking…"
+                    } else {
+                        viewModel.opponentLevel.label +
+                            (viewModel.opponentLevel.uciElo?.let { " · $it" } ?: "")
+                    },
+                    isWhite = engineSide == SideColor.WHITE,
+                    isActive = position.sideToMove == engineSide,
+                    trailing = {
+                        if (viewModel.engineThinking) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = Brass,
+                                strokeWidth = 2.dp,
+                            )
+                        }
+                    },
+                )
+                BoardWithEvalBar(game = viewModel, modifier = Modifier.fillMaxWidth())
+                PlayerStrip(
+                    name = profile?.shortName ?: "You",
+                    subtitle = "You — ${if (playerIsWhite) "White" else "Black"}",
+                    isWhite = playerIsWhite,
+                    isActive = position.sideToMove != engineSide,
+                )
+            }
+        } else {
+            BoardWithEvalBar(game = viewModel, modifier = Modifier.fillMaxWidth())
+        }
 
         Spacer(Modifier.weight(1f))
 
@@ -90,7 +128,12 @@ fun BoardScreen(
         Spacer(Modifier.height(12.dp))
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = viewModel::newGame, modifier = Modifier.weight(1f)) {
+            OutlinedButton(
+                // "New" means choosing an opponent, not silently dropping to a board with
+                // nobody on the other side.
+                onClick = onNewGame ?: viewModel::newGame,
+                modifier = Modifier.weight(1f),
+            ) {
                 Text("New")
             }
             OutlinedButton(onClick = viewModel::flipBoard, modifier = Modifier.weight(1f)) {

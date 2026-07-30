@@ -12,7 +12,7 @@ import gopesh.kibitz.profile.UserProfile
 import kotlinx.coroutines.launch
 
 /** Which screen the app is showing. */
-enum class Route { LOADING, ONBOARDING, ASSESSMENT, RESULT, PLAY }
+enum class Route { LOADING, ONBOARDING, ASSESSMENT, RESULT, NEW_GAME, PLAY }
 
 /**
  * Owns the player's profile and which screen is in front.
@@ -38,7 +38,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 saved == null -> Route.ONBOARDING
                 // Named but never assessed — finish what onboarding started.
                 !saved.hasLevel -> Route.ASSESSMENT
-                else -> Route.PLAY
+                // A returning player wants a game, so ask who against. Landing straight on the
+                // board would mean landing on one with no opponent.
+                else -> Route.NEW_GAME
             }
         }
     }
@@ -72,6 +74,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun goToPlay() {
         route = Route.PLAY
+    }
+
+    fun goToNewGame() {
+        route = Route.NEW_GAME
     }
 
     fun retakeAssessment() {
