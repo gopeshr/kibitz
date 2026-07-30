@@ -23,6 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,6 +35,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import gopesh.kibitz.data.GameSnapshot
 import gopesh.kibitz.engine.OpponentLevel
 import gopesh.kibitz.profile.UserProfile
 import gopesh.kibitz.ui.theme.Brass
@@ -63,6 +65,9 @@ fun NewGameScreen(
     onHistory: (() -> Unit)? = null,
     onCancel: (() -> Unit)? = null,
     updates: (@Composable () -> Unit)? = null,
+    unfinished: List<GameSnapshot> = emptyList(),
+    onResume: ((GameSnapshot) -> Unit)? = null,
+    onRefresh: (() -> Unit)? = null,
 ) {
     val matched = remember(profile) {
         if (profile != null && profile.hasLevel) {
@@ -71,6 +76,10 @@ fun NewGameScreen(
             OpponentLevel.CLUB
         }
     }
+    // The list is owned by a view model that outlives this screen, so a game finished or
+    // abandoned since the last visit has to be re-read on entry.
+    LaunchedEffect(Unit) { onRefresh?.invoke() }
+
     var selected by remember(matched) { mutableStateOf(matched) }
     var side by remember { mutableStateOf(SideChoice.WHITE) }
 
@@ -107,6 +116,49 @@ fun NewGameScreen(
                     color = Muted,
                     fontSize = 12.sp,
                 )
+            }
+        }
+
+        if (unfinished.isNotEmpty() && onResume != null) {
+            Spacer(Modifier.height(20.dp))
+            SectionLabel("Continue a game")
+            Spacer(Modifier.height(8.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (game in unfinished) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Surface1)
+                            .clickable { onResume(game) }
+                            .padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(11.dp)
+                                .clip(CircleShape)
+                                .background(if (game.playerIsWhite) Parchment else SquareDark),
+                        )
+                        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                            Text(
+                                text = "Move ${game.moveNumber} · as " +
+                                    if (game.playerIsWhite) "White" else "Black",
+                                color = Parchment,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                text = runCatching {
+                                    OpponentLevel.valueOf(game.opponentLevel).label
+                                }.getOrDefault(game.opponentLevel.lowercase()),
+                                color = Muted,
+                                fontSize = 11.sp,
+                            )
+                        }
+                        Text("›", color = Brass, fontSize = 22.sp)
+                    }
+                }
             }
         }
 

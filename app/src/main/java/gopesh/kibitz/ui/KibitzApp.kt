@@ -1,5 +1,6 @@
 package gopesh.kibitz.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -31,6 +32,10 @@ fun KibitzApp(
 ) {
     val profile = app.profile
 
+    // Without this the system back gesture pops the activity and leaves the app, wherever you
+    // happen to be. Disabled on the home screen so back there still closes the app, as expected.
+    BackHandler(enabled = app.canGoBack) { app.goBack() }
+
     when (app.route) {
         Route.LOADING -> Box(
             modifier = Modifier
@@ -47,6 +52,7 @@ fun KibitzApp(
             game = game,
             playerName = profile?.shortName ?: "You",
             onComplete = app::onAssessmentComplete,
+            onSkip = app::skipAssessment,
         )
 
         Route.RESULT -> {
@@ -89,6 +95,12 @@ fun KibitzApp(
             onPractise = app::goToDrills,
             onHistory = app::goToHistory,
             updates = { UpdateCard(updates) },
+            unfinished = game.unfinishedGames,
+            onResume = { snapshot ->
+                game.resume(snapshot)
+                app.goToPlay()
+            },
+            onRefresh = game::refreshUnfinishedGames,
             onStart = { level, playerIsWhite ->
                 game.startGame(level, playerIsWhite)
                 app.goToPlay()

@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import gopesh.kibitz.chess.Color
 import gopesh.kibitz.chess.DrawReason
 import gopesh.kibitz.chess.Squares
+import gopesh.kibitz.coach.EstimateConfidence
 import gopesh.kibitz.chess.Status
 import gopesh.kibitz.engine.OpponentLevel
 import org.junit.Assert.assertEquals
@@ -211,5 +212,37 @@ class GameRepetitionTest {
 
         assertTrue(game.status is Status.Ongoing)
         assertFalse(game.isGameOver)
+    }
+
+    // ------------------------------------------------- resigning a level check
+
+    /**
+     * The level check used to have no exit at all: thirty moves, no resign, no skip. Anyone who
+     * could not finish it was stuck on that screen.
+     */
+    @Test
+    fun aLevelCheckCanBeResigned() {
+        val game = newGame()
+        game.startAssessment(moves = 30)
+        game.move("e2", "e4")
+
+        assertTrue("resign must be offered during a level check", game.canResign)
+        game.resign()
+
+        assertTrue(game.isGameOver)
+        assertEquals(Status.Resigned(winner = Color.BLACK), game.status)
+    }
+
+    @Test
+    fun resigningALevelCheckStillProducesAnEstimate() {
+        val game = newGame()
+        game.startAssessment(moves = 30)
+        game.move("e2", "e4")
+        game.resign()
+
+        assertTrue("the check must be marked finished", game.assessmentComplete)
+        // An estimate from a couple of moves is honest only if it says so; the confidence field
+        // is what carries that.
+        assertEquals(EstimateConfidence.VERY_LOW, game.levelEstimate?.confidence)
     }
 }

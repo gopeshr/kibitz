@@ -14,13 +14,21 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,6 +42,8 @@ import gopesh.kibitz.coach.LevelEstimate
 import gopesh.kibitz.coach.MoveAssessment
 import gopesh.kibitz.coach.MoveQuality
 import gopesh.kibitz.ui.theme.Brass
+import gopesh.kibitz.ui.theme.Ink
+import gopesh.kibitz.ui.theme.Surface2
 import gopesh.kibitz.ui.theme.Muted
 import gopesh.kibitz.ui.theme.Parchment
 import gopesh.kibitz.ui.theme.Surface1
@@ -49,7 +59,9 @@ fun AssessmentScreen(
     game: GameViewModel,
     playerName: String,
     onComplete: (LevelEstimate) -> Unit,
+    onSkip: (() -> Unit)? = null,
 ) {
+    var confirmStop by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         if (!game.isAssessing && !game.assessmentComplete) game.startAssessment()
     }
@@ -83,6 +95,14 @@ fun AssessmentScreen(
                 color = Muted,
                 fontSize = 12.sp,
             )
+            // Thirty moves is a long commitment, and this screen used to have no exit at all.
+            TextButton(onClick = { confirmStop = true }) {
+                Text(
+                    text = if (game.canResign) "Resign" else "Skip",
+                    color = Brass,
+                    fontSize = 12.sp,
+                )
+            }
         }
 
         Spacer(Modifier.height(8.dp))
@@ -133,6 +153,52 @@ fun AssessmentScreen(
         Spacer(Modifier.weight(1f))
 
         FeedbackCard(latest = game.latestAssessment, thinking = game.engineThinking)
+    }
+
+    if (confirmStop) {
+        val resigning = game.canResign
+        AlertDialog(
+            onDismissRequest = { confirmStop = false },
+            containerColor = Surface2,
+            title = {
+                Text(
+                    text = if (resigning) "Resign the level check?" else "Skip the level check?",
+                    color = Parchment,
+                    fontWeight = FontWeight.Bold,
+                )
+            },
+            text = {
+                Text(
+                    text = if (resigning) {
+                        "It counts as a loss. You will still get an estimate, but from only the " +
+                            "moves you have played, so it will be a rough one."
+                    } else {
+                        "You can play without a level, and take the check whenever you like from " +
+                            "the board screen."
+                    },
+                    color = Muted,
+                    fontSize = 13.sp,
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        confirmStop = false
+                        if (resigning) game.resign() else onSkip?.invoke()
+                    },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Brass, contentColor = Ink),
+                ) {
+                    Text(if (resigning) "Resign" else "Skip", fontWeight = FontWeight.SemiBold)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { confirmStop = false },
+                    shape = RoundedCornerShape(10.dp),
+                ) { Text("Keep playing") }
+            },
+        )
     }
 
     game.promotionPrompt?.let {

@@ -86,6 +86,19 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private val history = TrainingHistory(application)
     private val gameStore = GameStore(application)
 
+    /** Identity of the game being played, so saving updates it instead of adding duplicates. */
+    private var currentGameId: String? = null
+
+    /** Unfinished games available to continue. */
+    var unfinishedGames by mutableStateOf<List<GameSnapshot>>(emptyList())
+        private set
+
+    fun refreshUnfinishedGames() {
+        viewModelScope.launch {
+            unfinishedGames = runCatching { gameStore.list() }.getOrDefault(emptyList())
+        }
+    }
+
     private fun engine(): ChessEngine = EngineProvider.current()
 
     // ------------------------------------------------------------ assessment
@@ -281,65 +294,83 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
      */
     private fun persistInProgressGame() {
         val engine = engineSide
-        if (engine == null || assessmentTarget != 0) return
+        val id = currentGameId
+        if (engine == null || id == null || assessmentTarget != 0) return
 
         if (isGameOver) {
-            viewModelScope.launch { runCatching { gameStore.clear() } }
+            viewModelScope.launch {
+                runCatching { gameStore.remove(id) }
+                refreshUnfinishedGames()
+            }
             return
         }
         val snapshot = GameSnapshot(
+            id = id,
             moves = plies.map { it.move.uci },
             engineSide = engine.name,
             opponentLevel = opponentLevel.name,
             playerIsWhite = engine != Color.WHITE,
+            savedAt = System.currentTimeMillis(),
         )
-        viewModelScope.launch { runCatching { gameStore.save(snapshot) } }
+        viewModelScope.launch {
+            runCatching { gameStore.save(snapshot) }
+            refreshUnfinishedGames()
+        }
     }
 
     /**
      * Restores a game that was interrupted, by replaying its moves. Replaying rather than
      * restoring a position rebuilds the move list and the repetition counts at the same time.
      */
-    private fun restoreInProgressGame() {
+    /**
+     * Picks up an unfinished game by replaying its moves. Replaying rather than restoring a
+     * position rebuilds the move list and the repetition counts at the same time.
+     */
+    fun resume(snapshot: GameSnapshot) {
+        val engine = runCatching { Color.valueOf(snapshot.engineSide) }.getOrNull() ?: return
+
+        resetBoard()
+        assessments.clear()
+        assessedFens.clear()
+        assessedUcis.clear()
+        levelEstimate = null
+        assessmentComplete = false
+        assessmentTarget = 0
+        opponentLevel = runCatching { OpponentLevel.valueOf(snapshot.opponentLevel) }
+            .getOrDefault(OpponentLevel.CLUB)
+        engineSide = engine
+        flipped = !snapshot.playerIsWhite
+        currentGameId = snapshot.id
+
         viewModelScope.launch {
-            val snapshot = runCatching { gameStore.load() }.getOrNull() ?: return@launch
-            // Never overwrite a game already under way, e.g. if the player was quick.
-            if (plies.isNotEmpty() || engineSide != null) return@launch
-
-            val level = runCatching { OpponentLevel.valueOf(snapshot.opponentLevel) }
-                .getOrDefault(OpponentLevel.CLUB)
-            val engine = runCatching { Color.valueOf(snapshot.engineSide) }.getOrNull()
-                ?: return@launch
-
-            resetBoard()
-            assessmentTarget = 0
-            opponentLevel = level
-            engineSide = engine
-            flipped = !snapshot.playerIsWhite
-
             for (uci in snapshot.moves) {
                 val move = position.legalMoves().firstOrNull { it.uci.equals(uci, true) }
                 if (move == null) {
-                    // A move that no longer fits means the record is not trustworthy; start
-                    // clean rather than resume something half-built.
-                    Log.w(TAG, "discarding an unreplayable saved game at '\$uci'")
+                    // A move that no longer fits means the record cannot be trusted. Drop it
+                    // rather than resume something half-built.
+                    Log.w(TAG, "discarding an unreplayable saved game at '$uci'")
+                    runCatching { gameStore.remove(snapshot.id) }
+                    refreshUnfinishedGames()
                     newGame()
-                    runCatching { gameStore.clear() }
                     return@launch
                 }
                 applyMove(move, wasDragged = false)
             }
-
             // If it is the engine's turn after replaying, it still owes a move.
             if (!isGameOver && position.sideToMove == engine) playEngineReply()
         }
     }
 
     /**
-     * Gives up the current game against the engine.
+     * Gives up the current game.
      *
-     * Reviewed and filed exactly like a game that ended on the board: a resignation is still a
-     * game you played, and the mistakes that led to it are the ones most worth practising.
+     * Works during a level check as well as ordinary play. The check used to have no exit at
+     * all — thirty moves with no way out — so anyone who could not finish it was stuck.
+     * Resigning one still produces an estimate, from the moves actually played, with the low
+     * confidence that few moves deserves.
+     *
+     * Either way the game is reviewed and filed: a game you gave up is still a game you played,
+     * and the mistakes that lost it are the ones most worth practising.
      */
     fun resign() {
         val engine = engineSide ?: return
@@ -347,8 +378,18 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         resignedBy = engine.opposite
         selectedSquare = null
         promotionPrompt = null
-        if (assessmentTarget == 0 && !gameRecorded) reviewFinishedGame()
-        viewModelScope.launch { runCatching { gameStore.clear() } }
+
+        if (assessmentTarget > 0) {
+            if (!assessmentComplete) finishAssessment()
+        } else if (!gameRecorded) {
+            reviewFinishedGame()
+        }
+        currentGameId?.let { id ->
+            viewModelScope.launch {
+                runCatching { gameStore.remove(id) }
+                refreshUnfinishedGames()
+            }
+        }
     }
 
     val canResign: Boolean get() = engineSide != null && !isGameOver && plyCount > 0
@@ -458,7 +499,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun newGame() {
-        viewModelScope.launch { runCatching { gameStore.clear() } }
+        currentGameId = null
         resetBoard()
         engineSide = null
         assessmentTarget = 0
@@ -498,6 +539,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         assessmentTarget = 0
         opponentLevel = level
         engineSide = if (playerIsWhite) Color.BLACK else Color.WHITE
+        currentGameId = java.util.UUID.randomUUID().toString()
         // Sit behind your own pieces whichever colour you took.
         flipped = !playerIsWhite
 
@@ -674,7 +716,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
      */
     init {
         EngineProvider.warmUp(application, viewModelScope)
-        restoreInProgressGame()
+        refreshUnfinishedGames()
         viewModelScope.launch {
             EngineProvider.engine.collect { engine ->
                 engineId = engine.id

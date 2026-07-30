@@ -27,6 +27,7 @@ class ProfileStore(context: Context) {
             bandLabel = prefs.getString(KEY_BAND, "").orEmpty(),
             averageLoss = prefs.getInt(KEY_AVERAGE_LOSS, 0),
             assessmentsCompleted = prefs.getInt(KEY_ASSESSMENTS, 0),
+            assessmentDeclined = prefs.getBoolean(KEY_DECLINED, false),
         )
     }
 
@@ -38,6 +39,7 @@ class ProfileStore(context: Context) {
             .putString(KEY_BAND, profile.bandLabel)
             .putInt(KEY_AVERAGE_LOSS, profile.averageLoss)
             .putInt(KEY_ASSESSMENTS, profile.assessmentsCompleted)
+            .putBoolean(KEY_DECLINED, profile.assessmentDeclined)
             .commit()
         Unit
     }
@@ -55,5 +57,6 @@ class ProfileStore(context: Context) {
         const val KEY_BAND = "band"
         const val KEY_AVERAGE_LOSS = "average_loss"
         const val KEY_ASSESSMENTS = "assessments"
+        const val KEY_DECLINED = "assessment_declined"
     }
 }

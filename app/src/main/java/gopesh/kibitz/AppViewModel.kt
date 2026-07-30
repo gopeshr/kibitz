@@ -32,18 +32,50 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var route by mutableStateOf(Route.LOADING)
         private set
 
+    /**
+     * Where back goes. Without this the system back gesture pops the activity and leaves the
+     * app entirely, which is wrong everywhere except the screen the app opens on.
+     */
+    private val backStack = mutableListOf<Route>()
+
+    val canGoBack: Boolean get() = backStack.isNotEmpty()
+
+    /** Moves to [destination], remembering where we came from. */
+    private fun navigateTo(destination: Route) {
+        if (destination == route) return
+        backStack.add(route)
+        route = destination
+    }
+
+    /**
+     * Pops one screen. Returns false when there is nowhere left to go, so the caller can let the
+     * system close the app instead of swallowing the gesture.
+     */
+    fun goBack(): Boolean {
+        val previous = backStack.removeLastOrNull() ?: return false
+        // Never reverse into a transient screen: LOADING is gone for good, and returning to a
+        // finished level check or its result would be a dead end.
+        route = when (previous) {
+            Route.LOADING, Route.ASSESSMENT, Route.RESULT, Route.ONBOARDING -> Route.NEW_GAME
+            else -> previous
+        }
+        return true
+    }
+
+    /** Forgets the history, for points where going back would make no sense. */
+    private fun resetBackStack() = backStack.clear()
+
     init {
         viewModelScope.launch {
             val saved = store.load()
             profile = saved
             route = when {
                 saved == null -> Route.ONBOARDING
-                // Named but never assessed — finish what onboarding started.
-                !saved.hasLevel -> Route.ASSESSMENT
-                // Straight back into an interrupted game if there is one; otherwise ask who
-                // to play, since landing on the board would mean landing on one with no
-                // opponent.
-                games.hasSavedGame() -> Route.PLAY
+                // Named but never assessed — finish what onboarding started, unless they have
+                // already said no. Forcing it again would trap anyone who cannot complete it.
+                !saved.hasLevel && !saved.assessmentDeclined -> Route.ASSESSMENT
+                // The home screen either way: it lists any unfinished games to continue, which
+                // is better than silently reopening whichever one happened to be last.
                 else -> Route.NEW_GAME
             }
         }
@@ -76,23 +108,31 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun goToPlay() {
-        route = Route.PLAY
-    }
+    fun goToPlay() = navigateTo(Route.PLAY)
 
+    /** The app's home. Back from here should close the app, so the history is dropped. */
     fun goToNewGame() {
+        resetBackStack()
         route = Route.NEW_GAME
     }
 
-    fun goToDrills() {
-        route = Route.DRILLS
-    }
+    fun goToDrills() = navigateTo(Route.DRILLS)
 
-    fun goToHistory() {
-        route = Route.HISTORY
-    }
+    fun goToHistory() = navigateTo(Route.HISTORY)
 
     fun retakeAssessment() {
+        resetBackStack()
         route = Route.ASSESSMENT
+    }
+
+    /** Abandoning the level check without a result: land on the home screen, unrated. */
+    fun skipAssessment() {
+        val current = profile ?: return
+        viewModelScope.launch {
+            val updated = current.copy(assessmentDeclined = true)
+            store.save(updated)
+            profile = updated
+            goToNewGame()
+        }
     }
 }

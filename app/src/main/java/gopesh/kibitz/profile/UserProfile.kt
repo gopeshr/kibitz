@@ -14,6 +14,8 @@ data class UserProfile(
     val bandLabel: String = "",
     val averageLoss: Int = 0,
     val assessmentsCompleted: Int = 0,
+    /** True once the player has chosen to skip the level check, so it is never forced again. */
+    val assessmentDeclined: Boolean = false,
 ) {
     val hasLevel: Boolean get() = bandLabel.isNotEmpty()
 

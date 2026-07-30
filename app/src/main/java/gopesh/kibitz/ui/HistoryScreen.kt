@@ -1,5 +1,6 @@
 package gopesh.kibitz.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -56,6 +57,10 @@ fun HistoryScreen(viewModel: HistoryViewModel, onDone: () -> Unit) {
     LaunchedEffect(Unit) { viewModel.refresh() }
 
     val open = viewModel.openGame
+
+    // Nested back: close the open game first. Enabled only when there is one, so otherwise the
+    // app-level handler takes the gesture and leaves the screen.
+    BackHandler(enabled = open != null) { viewModel.closeGame() }
 
     Column(
         modifier = Modifier
