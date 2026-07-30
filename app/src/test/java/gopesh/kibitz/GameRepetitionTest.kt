@@ -2,9 +2,11 @@ package gopesh.kibitz
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
+import gopesh.kibitz.chess.Color
 import gopesh.kibitz.chess.DrawReason
 import gopesh.kibitz.chess.Squares
 import gopesh.kibitz.chess.Status
+import gopesh.kibitz.engine.OpponentLevel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -124,5 +126,90 @@ class GameRepetitionTest {
             "the position after the pawn moves has only occurred twice",
             game.status is Status.Ongoing,
         )
+    }
+
+    // -------------------------------------------------------------- resignation
+
+    /**
+     * Resignation is a fact about the game, not the position, so the board is left perfectly
+     * playable — which is exactly why the outcome has to override rather than be derived.
+     */
+    @Test
+    fun resigningEndsTheGameAsALoss() {
+        val game = newGame()
+        game.startGame(OpponentLevel.BEGINNER, playerIsWhite = true)
+        game.move("e2", "e4")
+
+        game.resign()
+
+        assertEquals(Status.Resigned(winner = Color.BLACK), game.status)
+        assertTrue(game.isGameOver)
+        assertTrue("legal moves still exist on the board", game.legalMoves.isNotEmpty())
+    }
+
+    @Test
+    fun resigningAsBlackHandsTheGameToWhite() {
+        val game = newGame()
+        game.startGame(OpponentLevel.BEGINNER, playerIsWhite = false)
+        game.resign()
+        assertEquals(Status.Resigned(winner = Color.WHITE), game.status)
+    }
+
+    @Test
+    fun noMoreMovesAreAcceptedAfterResigning() {
+        val game = newGame()
+        game.startGame(OpponentLevel.BEGINNER, playerIsWhite = true)
+        game.move("e2", "e4")
+        game.resign()
+        val pliesAtResignation = game.plyCount
+
+        game.move("d2", "d4")
+
+        assertEquals(pliesAtResignation, game.plyCount)
+    }
+
+    /** Nothing to give up in free play, and nothing to give up before a move is made. */
+    @Test
+    fun resignIsOnlyOfferedWhenItMeansSomething() {
+        val freePlay = newGame()
+        assertFalse("no opponent to resign to", freePlay.canResign)
+
+        val vsEngine = newGame()
+        vsEngine.startGame(OpponentLevel.BEGINNER, playerIsWhite = true)
+        assertFalse("nothing played yet", vsEngine.canResign)
+
+        vsEngine.move("e2", "e4")
+        assertTrue(vsEngine.canResign)
+
+        vsEngine.resign()
+        assertFalse("already over", vsEngine.canResign)
+    }
+
+    /** A game already decided on the board cannot be re-decided by giving up. */
+    @Test
+    fun resigningAfterCheckmateChangesNothing() {
+        val game = newGame()
+        // Fool's mate, both sides by hand, so the position itself is terminal.
+        game.move("f2", "f3"); game.move("e7", "e5")
+        game.move("g2", "g4"); game.move("d8", "h4")
+        assertEquals(Status.Checkmate(Color.BLACK), game.status)
+
+        game.resign()
+
+        assertEquals("the mate stands", Status.Checkmate(Color.BLACK), game.status)
+    }
+
+    @Test
+    fun aNewGameClearsTheResignation() {
+        val game = newGame()
+        game.startGame(OpponentLevel.BEGINNER, playerIsWhite = true)
+        game.move("e2", "e4")
+        game.resign()
+        assertTrue(game.isGameOver)
+
+        game.newGame()
+
+        assertTrue(game.status is Status.Ongoing)
+        assertFalse(game.isGameOver)
     }
 }

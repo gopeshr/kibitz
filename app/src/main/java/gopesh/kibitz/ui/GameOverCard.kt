@@ -187,6 +187,10 @@ private fun Metric(value: String, label: String, modifier: Modifier = Modifier) 
 private fun headline(status: Status, playerIsWhite: Boolean): String = when (status) {
     is Status.Checkmate ->
         if ((status.winner == SideColor.WHITE) == playerIsWhite) "You won" else "Kibitz won"
+    // Only the player can resign here, so this is always a loss — but it is read off the winner
+    // rather than assumed, so it stays correct if Kibitz is ever allowed to resign too.
+    is Status.Resigned ->
+        if ((status.winner == SideColor.WHITE) == playerIsWhite) "You won" else "You resigned"
     is Status.Draw -> "Drawn"
     is Status.Ongoing -> "Game over"
 }
@@ -195,11 +199,14 @@ private fun accent(status: Status, playerIsWhite: Boolean): androidx.compose.ui.
     when (status) {
         is Status.Checkmate ->
             if ((status.winner == SideColor.WHITE) == playerIsWhite) Good else Bad
+        is Status.Resigned ->
+            if ((status.winner == SideColor.WHITE) == playerIsWhite) Good else Bad
         else -> Brass
     }
 
 private fun detail(status: Status): String = when (status) {
     is Status.Checkmate -> "by checkmate"
+    is Status.Resigned -> "the game was given up"
     is Status.Draw -> when (status.reason) {
         DrawReason.STALEMATE -> "by stalemate"
         DrawReason.FIFTY_MOVE -> "by the fifty-move rule"

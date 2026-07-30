@@ -184,8 +184,13 @@ object LevelEstimator {
         mistakes: Int,
     ): List<String> = buildList {
         if (blunders > 0) {
-            val plural = if (blunders == 1) "blunder" else "blunders"
-            add("$blunders $plural — moves that changed the result of the game.")
+            add(
+                if (blunders == 1) {
+                    "1 blunder — a move that changed the result of the game."
+                } else {
+                    "$blunders blunders — moves that changed the result of the game."
+                }
+            )
         }
         if (mistakes > 0) {
             add("$mistakes mistake${if (mistakes == 1) "" else "s"} that gave away real ground.")

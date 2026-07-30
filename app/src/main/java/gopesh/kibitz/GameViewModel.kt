@@ -17,6 +17,7 @@ import gopesh.kibitz.chess.PieceType
 import gopesh.kibitz.chess.Position
 import gopesh.kibitz.chess.Squares
 import gopesh.kibitz.chess.Status
+import gopesh.kibitz.chess.resultString
 import gopesh.kibitz.chess.san
 import gopesh.kibitz.data.AccuracySummary
 import gopesh.kibitz.data.GameSnapshot
@@ -169,16 +170,22 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
      */
     private val repetitionCounts = mutableStateMapOf<String, Int>()
 
+    /** Set when the player gives up. A game-level fact, so it lives here, not in the position. */
+    private var resignedBy by mutableStateOf<Color?>(null)
+
     /**
      * The game's outcome, with threefold repetition layered on top of what a single position
      * can determine by itself.
      */
     val status: Status by derivedStateOf {
         val fromPosition = position.status()
-        // A mate or a stalemate outranks a repetition; the game ended on the board.
-        if (fromPosition is Status.Ongoing &&
-            (repetitionCounts[position.repetitionKey] ?: 0) >= 3
-        ) {
+        // Anything decided on the board outranks a resignation or a repetition: you cannot
+        // resign a game that is already over.
+        if (fromPosition !is Status.Ongoing) return@derivedStateOf fromPosition
+
+        resignedBy?.let { return@derivedStateOf Status.Resigned(winner = it.opposite) }
+
+        if ((repetitionCounts[position.repetitionKey] ?: 0) >= 3) {
             Status.Draw(DrawReason.THREEFOLD_REPETITION)
         } else {
             fromPosition
@@ -224,10 +231,10 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val playerPlies = plies.filter { it.before.sideToMove == playerColor }
         if (playerPlies.isEmpty()) return
 
-        val finalPosition = position
         val level = opponentLevel
         val engine = engine()
         val playerIsWhite = playerColor == Color.WHITE
+        val resolvedResult = status.resultString()
 
         viewModelScope.launch {
             reviewing = true
@@ -257,7 +264,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                         wasLevelCheck = false,
                         opponentLevel = level.name,
                         engineId = engine.id,
-                        finalPosition = finalPosition,
+                        result = resolvedResult,
                         playedAt = System.currentTimeMillis(),
                     )
                     refreshHistorySummary()
@@ -327,6 +334,24 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             if (!isGameOver && position.sideToMove == engine) playEngineReply()
         }
     }
+
+    /**
+     * Gives up the current game against the engine.
+     *
+     * Reviewed and filed exactly like a game that ended on the board: a resignation is still a
+     * game you played, and the mistakes that led to it are the ones most worth practising.
+     */
+    fun resign() {
+        val engine = engineSide ?: return
+        if (isGameOver) return
+        resignedBy = engine.opposite
+        selectedSquare = null
+        promotionPrompt = null
+        if (assessmentTarget == 0 && !gameRecorded) reviewFinishedGame()
+        viewModelScope.launch { runCatching { gameStore.clear() } }
+    }
+
+    val canResign: Boolean get() = engineSide != null && !isGameOver && plyCount > 0
 
     /** Plays the same opponent again, same colour. */
     fun rematch() {
@@ -511,6 +536,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private fun resetBoard() {
         plies.clear()
         repetitionCounts.clear()
+        resignedBy = null
         position = Position.start()
         countPosition()
         selectedSquare = null
@@ -606,7 +632,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val judged = assessments.toList()
         val fens = assessedFens.toList()
         val ucis = assessedUcis.toList()
-        val finalPosition = position
+        val resolvedResult = status.resultString()
         val engine = engine()
         val level = opponentLevel
         val playerIsWhite = engineSide != Color.WHITE
@@ -623,7 +649,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     wasLevelCheck = wasLevelCheck,
                     opponentLevel = level.name,
                     engineId = engine.id,
-                    finalPosition = finalPosition,
+                    result = resolvedResult,
                     playedAt = System.currentTimeMillis(),
                 )
                 refreshHistorySummary()

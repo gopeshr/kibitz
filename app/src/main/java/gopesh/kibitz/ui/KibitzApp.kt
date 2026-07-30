@@ -13,6 +13,7 @@ import gopesh.kibitz.AppViewModel
 import gopesh.kibitz.DrillViewModel
 import gopesh.kibitz.GameViewModel
 import gopesh.kibitz.HistoryViewModel
+import gopesh.kibitz.UpdateViewModel
 import gopesh.kibitz.Route
 import gopesh.kibitz.ui.theme.Brass
 
@@ -26,6 +27,7 @@ fun KibitzApp(
     game: GameViewModel = viewModel(),
     drills: DrillViewModel = viewModel(),
     historyView: HistoryViewModel = viewModel(),
+    updates: UpdateViewModel = viewModel(),
 ) {
     val profile = app.profile
 
@@ -86,6 +88,7 @@ fun KibitzApp(
             profile = profile,
             onPractise = app::goToDrills,
             onHistory = app::goToHistory,
+            updates = { UpdateCard(updates) },
             onStart = { level, playerIsWhite ->
                 game.startGame(level, playerIsWhite)
                 app.goToPlay()

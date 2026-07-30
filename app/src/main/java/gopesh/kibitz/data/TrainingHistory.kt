@@ -1,10 +1,6 @@
 package gopesh.kibitz.data
 
 import android.content.Context
-import gopesh.kibitz.chess.Color
-import gopesh.kibitz.chess.DrawReason
-import gopesh.kibitz.chess.Position
-import gopesh.kibitz.chess.Status
 import gopesh.kibitz.coach.LevelCalibration
 import gopesh.kibitz.coach.Drill
 import gopesh.kibitz.coach.LevelEstimate
@@ -33,7 +29,7 @@ class TrainingHistory(private val dao: HistoryDao) {
         wasLevelCheck: Boolean,
         opponentLevel: String,
         engineId: String,
-        finalPosition: Position,
+        result: String,
         playedAt: Long,
     ): Long {
         val game = GameRecord(
@@ -48,7 +44,7 @@ class TrainingHistory(private val dao: HistoryDao) {
             bandLabel = estimate.band.label,
             ratingLow = estimate.band.ratingLow,
             ratingHigh = estimate.band.ratingHigh,
-            result = resultOf(finalPosition),
+            result = result,
         )
 
         val moves = assessments.mapIndexed { index, assessment ->
@@ -110,15 +106,4 @@ class TrainingHistory(private val dao: HistoryDao) {
         const val DRILL_MINIMUM_LOSS = 120
     }
 
-    private fun resultOf(position: Position): String = when (val status = position.status()) {
-        is Status.Checkmate -> if (status.winner == Color.WHITE) "1-0" else "0-1"
-        is Status.Draw -> when (status.reason) {
-            DrawReason.STALEMATE,
-            DrawReason.FIFTY_MOVE,
-            DrawReason.INSUFFICIENT_MATERIAL,
-            DrawReason.THREEFOLD_REPETITION,
-            -> "1/2-1/2"
-        }
-        is Status.Ongoing -> "unfinished"
-    }
 }

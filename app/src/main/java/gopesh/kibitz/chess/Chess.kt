@@ -113,4 +113,24 @@ sealed interface Status {
     data class Checkmate(val winner: Color) : Status
 
     data class Draw(val reason: DrawReason) : Status
+
+    /**
+     * A player gave up. Like a repetition draw, this is a fact about the game rather than the
+     * position — the board may be perfectly playable — so it can only be decided by whatever
+     * owns the game, never by [Position.status].
+     */
+    data class Resigned(val winner: Color) : Status
+}
+
+/**
+ * The outcome in the notation scoresheets use, from White's point of view.
+ *
+ * Derived from the outcome rather than from the board, because a resignation leaves a position
+ * that looks ongoing and a repetition draw leaves one with legal moves still on it.
+ */
+fun Status.resultString(): String = when (this) {
+    is Status.Checkmate -> if (winner == Color.WHITE) "1-0" else "0-1"
+    is Status.Resigned -> if (winner == Color.WHITE) "1-0" else "0-1"
+    is Status.Draw -> "1/2-1/2"
+    is Status.Ongoing -> "unfinished"
 }

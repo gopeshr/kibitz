@@ -62,6 +62,7 @@ fun NewGameScreen(
     onPractise: (() -> Unit)? = null,
     onHistory: (() -> Unit)? = null,
     onCancel: (() -> Unit)? = null,
+    updates: (@Composable () -> Unit)? = null,
 ) {
     val matched = remember(profile) {
         if (profile != null && profile.hasLevel) {
@@ -195,6 +196,13 @@ fun NewGameScreen(
                     modifier = Modifier.weight(1f),
                 )
             }
+        }
+
+        if (updates != null) {
+            Spacer(Modifier.height(18.dp))
+            SectionLabel("This build")
+            Spacer(Modifier.height(8.dp))
+            updates()
         }
 
         Spacer(Modifier.height(20.dp))

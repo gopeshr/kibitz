@@ -34,6 +34,11 @@ Kotlin + Jetpack Compose, with Stockfish 18 as the engine.
   each, and whether accuracy is actually improving rather than just an average.
 - **Survives being killed** — an unfinished game against the engine is restored by replaying its
   moves, so closing the app mid-game does not lose it.
+- **Resign** — a lost position has an exit, and the resigned game is still reviewed and filed, so
+  the mistakes that led to it still become practice.
+- **In-app updates** — checks this project's GitHub releases and installs a newer build. Strictly
+  when you ask: there is no check on launch, no polling and no background work, so the app makes
+  no network request at all unless you tap the button.
 
 The whole loop runs on the phone with no network: play → the game ends → it is reviewed → its
 mistakes become drills → play again.

@@ -80,7 +80,7 @@ android {
         minSdk = 26
         targetSdk = 34
         versionCode = 1
-        versionName = "0.1"
+        versionName = "0.1.0"   // compared against the GitHub tag, so keep the same shape
 
         externalNativeBuild {
             cmake {

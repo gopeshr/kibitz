@@ -47,7 +47,9 @@ import gopesh.kibitz.chess.Position
 import gopesh.kibitz.chess.Status
 import gopesh.kibitz.engine.EvalSnapshot
 import gopesh.kibitz.profile.UserProfile
+import gopesh.kibitz.ui.theme.Bad
 import gopesh.kibitz.ui.theme.Brass
+import gopesh.kibitz.ui.theme.Ink
 import gopesh.kibitz.ui.theme.Muted
 import gopesh.kibitz.ui.theme.Parchment
 import gopesh.kibitz.ui.theme.SquareDark
@@ -68,6 +70,7 @@ fun BoardScreen(
 
     // Reset every time a new game starts, so a dismissed card does not stay dismissed.
     var showResult by remember(viewModel.plyCount == 0) { mutableStateOf(true) }
+    var confirmResign by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -152,12 +155,24 @@ fun BoardScreen(
             OutlinedButton(onClick = viewModel::flipBoard, modifier = Modifier.weight(1f)) {
                 Text("Flip")
             }
-            OutlinedButton(
-                onClick = viewModel::undo,
-                enabled = viewModel.canUndo,
-                modifier = Modifier.weight(1f),
-            ) {
-                Text("Undo")
+            if (engineSide != null) {
+                // Undo is meaningless against an opponent, so the slot carries the action that
+                // a losing position actually needs.
+                OutlinedButton(
+                    onClick = { confirmResign = true },
+                    enabled = viewModel.canResign,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Resign")
+                }
+            } else {
+                OutlinedButton(
+                    onClick = viewModel::undo,
+                    enabled = viewModel.canUndo,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Undo")
+                }
             }
         }
     }
@@ -167,6 +182,43 @@ fun BoardScreen(
             side = position.sideToMove,
             onPick = viewModel::choosePromotion,
             onDismiss = viewModel::cancelPromotion,
+        )
+    }
+
+    if (confirmResign) {
+        AlertDialog(
+            onDismissRequest = { confirmResign = false },
+            containerColor = Surface2,
+            title = { Text("Resign this game?", color = Parchment, fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    text = "It counts as a loss, and there is no taking it back. The game will " +
+                        "still be reviewed and its mistakes kept for practice.",
+                    color = Muted,
+                    fontSize = 13.sp,
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        confirmResign = false
+                        showResult = true
+                        viewModel.resign()
+                    },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Bad, contentColor = Ink),
+                ) {
+                    Text("Resign", fontWeight = FontWeight.SemiBold)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { confirmResign = false },
+                    shape = RoundedCornerShape(10.dp),
+                ) {
+                    Text("Keep playing")
+                }
+            },
         )
     }
 
@@ -272,6 +324,7 @@ private fun StatusHeader(
 
 private fun headlineFor(position: Position, status: Status): String = when (status) {
     is Status.Checkmate -> "Checkmate — ${status.winner.label} wins"
+    is Status.Resigned -> "Resigned — ${status.winner.label} wins"
     is Status.Draw -> when (status.reason) {
         DrawReason.STALEMATE -> "Draw — stalemate"
         DrawReason.FIFTY_MOVE -> "Draw — fifty-move rule"

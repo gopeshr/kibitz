@@ -81,7 +81,7 @@ class TrainingHistoryTest {
         wasLevelCheck = true,
         opponentLevel = "CLUB",
         engineId = "stockfish-18",
-        finalPosition = Position.start(),
+        result = "1-0",
         playedAt = 1_000L,
     )
 
@@ -210,7 +210,7 @@ class TrainingHistoryTest {
             wasLevelCheck = false,
             opponentLevel = "CLUB",
             engineId = "stockfish-18",
-            finalPosition = Position.start(),
+            result = "0-1",
             playedAt = 1L,
         )
         assertTrue(id > 0)
