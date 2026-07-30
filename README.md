@@ -30,8 +30,15 @@ Kotlin + Jetpack Compose, with Stockfish 18 as the engine.
 - **Practise your own mistakes** — every blunder becomes a puzzle from the exact position it
   happened in, unsolved-hardest first, with attempts tracked so solved ones sink down the queue.
 
-Not done yet: no game-history browser, and no LLM coaching layer (deliberately deferred —
-everything above runs entirely on the phone).
+- **Your games** — every recorded game with its result and accuracy, the annotated move list for
+  each, and whether accuracy is actually improving rather than just an average.
+- **Survives being killed** — an unfinished game against the engine is restored by replaying its
+  moves, so closing the app mid-game does not lose it.
+
+The whole loop runs on the phone with no network: play → the game ends → it is reviewed → its
+mistakes become drills → play again.
+
+Not done yet: the LLM coaching layer, deliberately deferred.
 
 ## How the level bands were calibrated
 
@@ -96,6 +103,23 @@ To fetch them without building anything else:
 ```bash
 ./gradlew :app:fetchStockfishNetworks
 ```
+
+### Release builds
+
+`assembleRelease` runs R8 with shrinking on. Two things there are load-bearing:
+
+- The JNI bridge is linked **by name** — the C++ symbols encode the fully-qualified Java class
+  and method. `proguard-rules.pro` keeps `engine.stockfish.Stockfish` and its native methods, or
+  the engine fails to start in release builds only. Verified by checking the shipped dex.
+- Signing applies only when `release.keystore` and `keystore.properties` are present, so
+  `assembleRelease` works without them and produces an unsigned artifact. No key material is
+  generated or committed; both files are gitignored.
+
+Only `arm64-v8a` and `x86_64` are built. `armeabi-v7a` compiles cleanly and the CMake branch for
+it is there, but it is not shipped: Stockfish selects its instruction set at compile time with no
+runtime dispatch, so a wrong flag is a SIGILL rather than a slow search, and there is no 32-bit
+ARM device or emulator here to verify it on. Play's ABI targeting means 32-bit-only devices are
+simply not offered the app, which is better than being offered one that crashes.
 
 ### Size
 

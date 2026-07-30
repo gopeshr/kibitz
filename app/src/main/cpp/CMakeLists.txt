@@ -37,6 +37,12 @@ if (ANDROID_ABI STREQUAL "arm64-v8a")
             USE_POPCNT
             USE_PREFETCH
             USE_NEON=8)
+elseif (ANDROID_ABI STREQUAL "armeabi-v7a")
+    # 32-bit ARM: no IS_64BIT, and NEON at the armv7 level.
+    target_compile_definitions(stockfish PRIVATE
+            USE_POPCNT
+            USE_PREFETCH
+            USE_NEON=7)
 elseif (ANDROID_ABI STREQUAL "x86_64")
     target_compile_definitions(stockfish PRIVATE
             IS_64BIT

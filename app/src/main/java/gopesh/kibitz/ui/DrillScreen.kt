@@ -20,6 +20,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,6 +50,9 @@ fun DrillScreen(
     viewModel: DrillViewModel,
     onDone: () -> Unit,
 ) {
+    // Same reason as the history screen: mistakes made since the last visit have to appear.
+    LaunchedEffect(Unit) { viewModel.load() }
+
     val drill = viewModel.drill
     val progress = viewModel.progress
 

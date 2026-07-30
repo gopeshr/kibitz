@@ -19,6 +19,8 @@ import gopesh.kibitz.chess.Squares
 import gopesh.kibitz.chess.Status
 import gopesh.kibitz.chess.san
 import gopesh.kibitz.data.AccuracySummary
+import gopesh.kibitz.data.GameSnapshot
+import gopesh.kibitz.data.GameStore
 import gopesh.kibitz.data.TrainingHistory
 import gopesh.kibitz.coach.LevelCalibration
 import gopesh.kibitz.coach.LevelEstimate
@@ -81,6 +83,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         private set
 
     private val history = TrainingHistory(application)
+    private val gameStore = GameStore(application)
 
     private fun engine(): ChessEngine = EngineProvider.current()
 
@@ -265,6 +268,66 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Writes the game so far, so being killed mid-game does not lose it. Only ordinary games:
+     * see [GameStore] for why a level check is not resumable.
+     */
+    private fun persistInProgressGame() {
+        val engine = engineSide
+        if (engine == null || assessmentTarget != 0) return
+
+        if (isGameOver) {
+            viewModelScope.launch { runCatching { gameStore.clear() } }
+            return
+        }
+        val snapshot = GameSnapshot(
+            moves = plies.map { it.move.uci },
+            engineSide = engine.name,
+            opponentLevel = opponentLevel.name,
+            playerIsWhite = engine != Color.WHITE,
+        )
+        viewModelScope.launch { runCatching { gameStore.save(snapshot) } }
+    }
+
+    /**
+     * Restores a game that was interrupted, by replaying its moves. Replaying rather than
+     * restoring a position rebuilds the move list and the repetition counts at the same time.
+     */
+    private fun restoreInProgressGame() {
+        viewModelScope.launch {
+            val snapshot = runCatching { gameStore.load() }.getOrNull() ?: return@launch
+            // Never overwrite a game already under way, e.g. if the player was quick.
+            if (plies.isNotEmpty() || engineSide != null) return@launch
+
+            val level = runCatching { OpponentLevel.valueOf(snapshot.opponentLevel) }
+                .getOrDefault(OpponentLevel.CLUB)
+            val engine = runCatching { Color.valueOf(snapshot.engineSide) }.getOrNull()
+                ?: return@launch
+
+            resetBoard()
+            assessmentTarget = 0
+            opponentLevel = level
+            engineSide = engine
+            flipped = !snapshot.playerIsWhite
+
+            for (uci in snapshot.moves) {
+                val move = position.legalMoves().firstOrNull { it.uci.equals(uci, true) }
+                if (move == null) {
+                    // A move that no longer fits means the record is not trustworthy; start
+                    // clean rather than resume something half-built.
+                    Log.w(TAG, "discarding an unreplayable saved game at '\$uci'")
+                    newGame()
+                    runCatching { gameStore.clear() }
+                    return@launch
+                }
+                applyMove(move, wasDragged = false)
+            }
+
+            // If it is the engine's turn after replaying, it still owes a move.
+            if (!isGameOver && position.sideToMove == engine) playEngineReply()
+        }
+    }
+
     /** Plays the same opponent again, same colour. */
     fun rematch() {
         startGame(opponentLevel, playerIsWhite = engineSide != Color.WHITE)
@@ -370,6 +433,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun newGame() {
+        viewModelScope.launch { runCatching { gameStore.clear() } }
         resetBoard()
         engineSide = null
         assessmentTarget = 0
@@ -480,6 +544,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         if (assessmentTarget == 0 && engineSide != null && !gameRecorded && isGameOver) {
             reviewFinishedGame()
         }
+        persistInProgressGame()
     }
 
     /** Records the current position for repetition counting. */
@@ -583,6 +648,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
      */
     init {
         EngineProvider.warmUp(application, viewModelScope)
+        restoreInProgressGame()
         viewModelScope.launch {
             EngineProvider.engine.collect { engine ->
                 engineId = engine.id

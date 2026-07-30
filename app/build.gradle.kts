@@ -1,6 +1,7 @@
 import java.io.File
 import java.net.URI
 import java.security.MessageDigest
+import java.util.Properties
 
 plugins {
     id("com.android.application")
@@ -91,7 +92,15 @@ android {
 
         ndk {
             // arm64 covers every current Android phone; x86_64 keeps Intel emulators usable.
-            // Each extra ABI is another full Stockfish compile, so the list stays short.
+            //
+            // armeabi-v7a is deliberately absent even though CMakeLists can build it and does
+            // so cleanly. Stockfish selects its instruction set at compile time with no runtime
+            // dispatch, so a wrong flag is a SIGILL rather than a slow search — and the Kotlin
+            // fallback only catches System.loadLibrary failing, not a native crash. There is no
+            // 32-bit ARM hardware or emulator here to verify it on, and Play's ABI targeting
+            // means 32-bit-only devices are simply not offered the app, which is better than
+            // being offered one that dies. Add "armeabi-v7a" here to enable it once it can
+            // actually be tested on a device.
             abiFilters += listOf("arm64-v8a", "x86_64")
         }
     }
@@ -115,13 +124,36 @@ android {
         unitTests.isIncludeAndroidResources = true
     }
 
+    signingConfigs {
+        create("release") {
+            // Signs only when a keystore has been placed here. No key material is generated,
+            // committed or referenced by default; both files are gitignored.
+            val keystore = rootProject.file("release.keystore")
+            val properties = rootProject.file("keystore.properties")
+            if (keystore.exists() && properties.exists()) {
+                val loaded = Properties().apply {
+                    properties.inputStream().use { load(it) }
+                }
+                storeFile = keystore
+                storePassword = loaded.getProperty("storePassword")
+                keyAlias = loaded.getProperty("keyAlias")
+                keyPassword = loaded.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // Null when no keystore has been supplied, which leaves the artifact unsigned
+            // rather than failing the build. Assigning the config unconditionally breaks
+            // `assembleRelease` for anyone who has not set up signing, including CI.
+            signingConfig = signingConfigs.findByName("release")?.takeIf { it.storeFile != null }
         }
     }
 

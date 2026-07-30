@@ -7,12 +7,13 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import gopesh.kibitz.coach.LevelEstimate
+import gopesh.kibitz.data.GameStore
 import gopesh.kibitz.profile.ProfileStore
 import gopesh.kibitz.profile.UserProfile
 import kotlinx.coroutines.launch
 
 /** Which screen the app is showing. */
-enum class Route { LOADING, ONBOARDING, ASSESSMENT, RESULT, NEW_GAME, PLAY, DRILLS }
+enum class Route { LOADING, ONBOARDING, ASSESSMENT, RESULT, NEW_GAME, PLAY, DRILLS, HISTORY }
 
 /**
  * Owns the player's profile and which screen is in front.
@@ -23,6 +24,7 @@ enum class Route { LOADING, ONBOARDING, ASSESSMENT, RESULT, NEW_GAME, PLAY, DRIL
 class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private val store = ProfileStore(application)
+    private val games = GameStore(application)
 
     var profile by mutableStateOf<UserProfile?>(null)
         private set
@@ -38,8 +40,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 saved == null -> Route.ONBOARDING
                 // Named but never assessed — finish what onboarding started.
                 !saved.hasLevel -> Route.ASSESSMENT
-                // A returning player wants a game, so ask who against. Landing straight on the
-                // board would mean landing on one with no opponent.
+                // Straight back into an interrupted game if there is one; otherwise ask who
+                // to play, since landing on the board would mean landing on one with no
+                // opponent.
+                games.hasSavedGame() -> Route.PLAY
                 else -> Route.NEW_GAME
             }
         }
@@ -82,6 +86,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun goToDrills() {
         route = Route.DRILLS
+    }
+
+    fun goToHistory() {
+        route = Route.HISTORY
     }
 
     fun retakeAssessment() {

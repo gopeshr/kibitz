@@ -60,6 +60,7 @@ fun NewGameScreen(
     profile: UserProfile?,
     onStart: (OpponentLevel, Boolean) -> Unit,
     onPractise: (() -> Unit)? = null,
+    onHistory: (() -> Unit)? = null,
     onCancel: (() -> Unit)? = null,
 ) {
     val matched = remember(profile) {
@@ -77,9 +78,16 @@ fun NewGameScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .systemBarsPadding()
-            .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 18.dp),
     ) {
+      // The choices scroll; "Start game" stays put. Adding the practise and history cards
+      // pushed the primary action off the bottom of the screen, which is exactly the thing a
+      // primary action must never require scrolling to reach.
+      Column(
+        modifier = Modifier
+            .weight(1f)
+            .verticalScroll(rememberScrollState()),
+      ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             KibitzMark(size = 40, corner = 12)
             Column(Modifier.padding(start = 12.dp)) {
@@ -129,6 +137,34 @@ fun NewGameScreen(
             }
         }
 
+        if (onHistory != null) {
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Surface1)
+                    .clickable(onClick = onHistory)
+                    .padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = "Your games",
+                        color = Parchment,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = "Every game reviewed, and whether you are improving",
+                        color = Muted,
+                        fontSize = 11.sp,
+                    )
+                }
+                Text("›", color = Brass, fontSize = 22.sp)
+            }
+        }
+
         Spacer(Modifier.height(22.dp))
 
         SectionLabel("Opponent strength")
@@ -161,7 +197,8 @@ fun NewGameScreen(
             }
         }
 
-        Spacer(Modifier.height(26.dp))
+        Spacer(Modifier.height(20.dp))
+      }
 
         Button(
             onClick = {
