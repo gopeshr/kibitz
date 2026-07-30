@@ -57,6 +57,8 @@ fun KibitzApp(
                 ResultScreen(
                     playerName = profile?.shortName ?: "there",
                     estimate = estimate,
+                    gamesRecorded = game.gamesRecorded,
+                    allTimeAccuracy = game.allTimeAccuracy,
                     onStartPlaying = {
                         game.newGame()
                         app.goToPlay()

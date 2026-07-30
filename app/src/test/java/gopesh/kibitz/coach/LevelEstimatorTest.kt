@@ -27,7 +27,7 @@ class LevelEstimatorTest {
     @Test
     fun accuratePlayLandsInAHighBand() {
         val estimate = LevelEstimator.estimate(moves(0, 5, 8, 0, 12, 4, 9, 6, 0, 11, 3, 7))
-        assertEquals("Advanced", estimate.band.label)
+        assertEquals("Expert", estimate.band.label)
         assertEquals(0, estimate.blunders)
         assertTrue("expected a high top-move rate", estimate.topMoveRate >= 50)
     }
@@ -65,17 +65,48 @@ class LevelEstimatorTest {
     }
 
     @Test
-    fun confidenceNeverExceedsProvisionalFromOneGame() {
+    fun confidenceScalesWithTheCalibratedSampleAndNeverExceedsProvisional() {
+        val calibrated = LevelCalibration.CALIBRATED_SAMPLE_MOVES
         assertEquals(
             EstimateConfidence.VERY_LOW,
-            LevelEstimator.estimate(moves(10, 10, 10)).confidence,
+            LevelEstimator.estimate(moves(*IntArray(calibrated / 3 - 1) { 10 })).confidence,
         )
         assertEquals(
             EstimateConfidence.LOW,
-            LevelEstimator.estimate(moves(10, 10, 10, 10, 10, 10, 10)).confidence,
+            LevelEstimator.estimate(moves(*IntArray(calibrated / 2) { 10 })).confidence,
         )
-        val long = LevelEstimator.estimate(moves(*IntArray(40) { 10 }))
+        // Even a very long game is still only one game.
+        val long = LevelEstimator.estimate(moves(*IntArray(calibrated * 3) { 10 }))
         assertEquals(EstimateConfidence.MODERATE, long.confidence)
+    }
+
+    /** The bands must agree with the curve they were derived from. */
+    @Test
+    fun bandsAgreeWithTheFittedCurve() {
+        // Each band edge should sit within its own band's rating range.
+        for (loss in listOf(20, 32, 41, 49, 60, 73)) {
+            val band = LevelCalibration.bandForAverageLoss(loss)
+            val fitted = LevelCalibration.fittedRatingFor(loss)
+            assertTrue(
+                "loss ${'$'}loss fits to ${'$'}fitted but was placed in ${'$'}{band.label} " +
+                    "(${'$'}{band.ratingLow}-${'$'}{band.ratingHigh})",
+                fitted in (band.ratingLow - 60)..(band.ratingHigh + 60),
+            )
+        }
+    }
+
+    /** Accuracy must map monotonically: cleaner play can never rate lower. */
+    @Test
+    fun cleanerPlayNeverRatesLower() {
+        var previous = Int.MAX_VALUE
+        for (loss in listOf(10, 25, 35, 45, 55, 68, 120, 300)) {
+            val band = LevelCalibration.bandForAverageLoss(loss)
+            assertTrue(
+                "loss ${'$'}loss rated ${'$'}{band.ratingHigh}, above the previous ${'$'}previous",
+                band.ratingHigh <= previous,
+            )
+            previous = band.ratingHigh
+        }
     }
 
     @Test

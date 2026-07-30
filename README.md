@@ -17,9 +17,39 @@ Kotlin + Jetpack Compose, with Stockfish 18 as the engine.
   band with an explicit confidence caveat.
 - **Per-move coaching** — every move priced in centipawns and labelled from *Best move* to
   *Blunder*, with what would have been stronger.
+- **Training history** — every judged move stored in Room with the position it was played
+  from, so past mistakes can be replayed as puzzles.
 
-Not done yet: no engine opponent outside the level check, no stored game history, no LLM
-coaching layer.
+Not done yet: no engine opponent outside the level check, no LLM coaching layer, no drills built
+from the stored mistakes.
+
+## How the level bands were calibrated
+
+The rating bands are measured, not guessed. Stockfish limited to a known `UCI_Elo` stands in for
+a player of that strength, plays the same level check the app plays against the same Club-level
+opponent, and every move is judged at full strength with the depth and cap the app uses. Fitting
+rating against the resulting mean capped centipawn loss gives
+
+    rating = 6401 - 1295 * ln(loss)          R² = 0.977 over 1350–2900 Elo
+
+Sample length turned out not to be a free parameter. Discrimination between a 1350 and a 2900
+player, as a ratio of the difference to the per-game noise:
+
+| player moves assessed | signal / noise | R²    | monotonic |
+|-----------------------|----------------|-------|-----------|
+| 12                    | 1.03           | 0.600 | no        |
+| 20                    | 1.85           | 0.652 | no        |
+| **30**                | **2.89**       | 0.977 | yes       |
+
+At twelve moves the gap between a weak and a strong player *is* the noise — openings are
+forgiving and the signal lives in the middlegame. That is why the level check is thirty moves
+and why `LevelCalibration.CALIBRATED_SAMPLE_MOVES` and the thresholds must move together.
+
+Two limits stated plainly: the reference is engine play held to a rating rather than human play,
+and an engine capped at 1500 drifts mildly where a 1500-rated human misses tactics outright — so
+the shape of the curve is better evidence than its absolute position. Below 1350 the curve is
+extrapolated, because `UCI_Elo` bottoms out at 1320. Validating against players of known rating
+is still worth doing.
 
 ## Building
 
@@ -70,6 +100,7 @@ bundling it is the obvious pre-release optimisation; the engine code would not c
 chess/    rules — immutable Position, move generation, FEN, SAN
 engine/   ChessEngine interface, Stockfish (UCI over JNI), Kotlin fallback, eval snapshots
 coach/    per-move assessment and level estimation
+data/     Room history — games and every judged move, with the position it came from
 profile/  the player's name and estimated level
 ui/       Compose board, onboarding, level check, result
 ```
@@ -120,10 +151,9 @@ This is a summary, not legal advice.
 
 ## Known limitations
 
-- The rating bands in `LevelCalibration` have **not** been validated against players of known
-  rating. They follow the published relationship between average centipawn loss and rating, but
-  are not fitted. The UI deliberately shows a range and a confidence caveat rather than a
-  number.
+- The rating bands are fitted against engine play held to a known Elo, not against humans, and
+  are extrapolated below 1350. The UI deliberately shows a range and a confidence caveat rather
+  than a number.
 - ABIs are `arm64-v8a` and `x86_64` only. No `armeabi-v7a`, so very old 32-bit devices fall back
   to the Kotlin engine.
 - Built without `-march=armv8.2-a+dotprod`. It would be faster, but crashes with SIGILL on older

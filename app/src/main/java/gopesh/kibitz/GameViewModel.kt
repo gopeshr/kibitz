@@ -1,6 +1,7 @@
 package gopesh.kibitz
 
 import android.app.Application
+import android.util.Log
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -15,6 +16,9 @@ import gopesh.kibitz.chess.Position
 import gopesh.kibitz.chess.Squares
 import gopesh.kibitz.chess.Status
 import gopesh.kibitz.chess.san
+import gopesh.kibitz.data.AccuracySummary
+import gopesh.kibitz.data.TrainingHistory
+import gopesh.kibitz.coach.LevelCalibration
 import gopesh.kibitz.coach.LevelEstimate
 import gopesh.kibitz.coach.LevelEstimator
 import gopesh.kibitz.coach.MoveAnalyst
@@ -74,6 +78,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     var opponentLevel by mutableStateOf(OpponentLevel.ASSESSMENT)
         private set
 
+    private val history = TrainingHistory(application)
+
     private fun engine(): ChessEngine = EngineProvider.current()
 
     // ------------------------------------------------------------ assessment
@@ -90,6 +96,21 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         private set
 
     val assessments = mutableStateListOf<MoveAssessment>()
+
+    /**
+     * The position and move behind each assessment, kept in step with [assessments].
+     * Stored so a past mistake can be replayed as a puzzle from the exact position it
+     * happened in — notation alone could not be reconstructed into a board.
+     */
+    private val assessedFens = mutableListOf<String>()
+    private val assessedUcis = mutableListOf<String>()
+
+    /** Accuracy across every game ever recorded, or null before it has been read. */
+    var allTimeAccuracy by mutableStateOf<AccuracySummary?>(null)
+        private set
+
+    var gamesRecorded by mutableStateOf(0)
+        private set
 
     var levelEstimate by mutableStateOf<LevelEstimate?>(null)
         private set
@@ -239,6 +260,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         engineSide = null
         assessmentTarget = 0
         assessments.clear()
+        assessedFens.clear()
+        assessedUcis.clear()
         levelEstimate = null
         assessmentComplete = false
     }
@@ -263,6 +286,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     ) {
         resetBoard()
         assessments.clear()
+        assessedFens.clear()
+        assessedUcis.clear()
         levelEstimate = null
         assessmentComplete = false
         assessmentTarget = moves
@@ -319,6 +344,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
             if (isAssessing) {
                 assessments.add(MoveAnalyst(engine()).assess(before, move))
+                assessedFens.add(before.fen)
+                assessedUcis.add(move.uci)
             }
             // Either the target is met, or a move ended the game outright.
             if (reachedEndOfAssessment()) finishAssessment()
@@ -341,9 +368,47 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             (assessments.size >= assessmentTarget || position.legalMoves().isEmpty())
 
     private fun finishAssessment() {
-        levelEstimate = LevelEstimator.estimate(assessments.toList())
+        val estimate = LevelEstimator.estimate(assessments.toList())
+        levelEstimate = estimate
         assessmentComplete = true
         engineThinking = false
+
+        // Copy the state the write needs, then persist off the UI path. A storage failure must
+        // never cost the player the result they are looking at.
+        val judged = assessments.toList()
+        val fens = assessedFens.toList()
+        val ucis = assessedUcis.toList()
+        val finalPosition = position
+        val engine = engine()
+        val level = opponentLevel
+        val playerIsWhite = engineSide != Color.WHITE
+        val wasLevelCheck = assessmentTarget > 0
+
+        viewModelScope.launch {
+            runCatching {
+                history.recordGame(
+                    assessments = judged,
+                    fensBefore = fens,
+                    ucis = ucis,
+                    estimate = estimate,
+                    playerIsWhite = playerIsWhite,
+                    wasLevelCheck = wasLevelCheck,
+                    opponentLevel = level.name,
+                    engineId = engine.id,
+                    finalPosition = finalPosition,
+                    playedAt = System.currentTimeMillis(),
+                )
+                refreshHistorySummary()
+            }.onFailure { Log.e(TAG, "could not record the game", it) }
+        }
+    }
+
+    /** Reads the stored history back, so the result screen can show a lifetime picture. */
+    private suspend fun refreshHistorySummary() {
+        runCatching {
+            gamesRecorded = history.gamesPlayed()
+            allTimeAccuracy = history.accuracy()
+        }.onFailure { Log.e(TAG, "could not read history", it) }
     }
 
     /**
@@ -367,7 +432,13 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     companion object {
-        /** Enough moves to see a pattern, few enough that nobody abandons it halfway. */
-        const val DEFAULT_ASSESSMENT_MOVES = 12
+        private const val TAG = "Kibitz/Game"
+
+        /**
+         * Tied to the calibration rather than chosen for feel. A shorter check is a nicer
+         * onboarding but cannot separate a 1350 player from a 2900 one — measured, not
+         * assumed. See [gopesh.kibitz.coach.LevelCalibration.CALIBRATED_SAMPLE_MOVES].
+         */
+        const val DEFAULT_ASSESSMENT_MOVES = LevelCalibration.CALIBRATED_SAMPLE_MOVES
     }
 }

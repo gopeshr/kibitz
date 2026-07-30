@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import gopesh.kibitz.coach.LevelEstimate
+import gopesh.kibitz.data.AccuracySummary
 import gopesh.kibitz.ui.theme.Bad
 import gopesh.kibitz.ui.theme.Brass
 import gopesh.kibitz.ui.theme.Good
@@ -46,6 +47,8 @@ import gopesh.kibitz.ui.theme.Surface2
 fun ResultScreen(
     playerName: String,
     estimate: LevelEstimate,
+    gamesRecorded: Int,
+    allTimeAccuracy: AccuracySummary?,
     onStartPlaying: () -> Unit,
     onPlayAgain: () -> Unit,
 ) {
@@ -176,6 +179,38 @@ fun ResultScreen(
             Spacer(Modifier.height(8.dp))
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 estimate.weaknesses.forEach { BulletLine(it, Bad) }
+            }
+        }
+
+        // Read back out of the stored history, not from this game — proof the record persists
+        // and the beginning of a picture that sharpens with every game played.
+        if (allTimeAccuracy != null && allTimeAccuracy.movesJudged > 0) {
+            Spacer(Modifier.height(18.dp))
+            SectionLabel("Across all your games")
+            Spacer(Modifier.height(8.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Surface1)
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                Text(
+                    text = "$gamesRecorded game${if (gamesRecorded == 1) "" else "s"} recorded · " +
+                        "${allTimeAccuracy.movesJudged} moves judged",
+                    color = Parchment,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = "Lifetime average loss " +
+                        "${pawnsLost(allTimeAccuracy.averageLoss.toInt())} pawns per move, " +
+                        "${allTimeAccuracy.blunders} blunder" +
+                        if (allTimeAccuracy.blunders == 1) "" else "s",
+                    color = Muted,
+                    fontSize = 12.sp,
+                )
             }
         }
 

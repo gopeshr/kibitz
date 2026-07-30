@@ -1,0 +1,100 @@
+[
+  {
+    "elo": 1350,
+    "games": 5,
+    "mean_loss": 48.6,
+    "median_loss": 45.7,
+    "stdev": 15.8,
+    "per_game": [
+      33.5,
+      45.7,
+      75.1,
+      41.1,
+      47.5
+    ]
+  },
+  {
+    "elo": 1500,
+    "games": 5,
+    "mean_loss": 39.5,
+    "median_loss": 39.8,
+    "stdev": 17.7,
+    "per_game": [
+      13.0,
+      39.8,
+      39.0,
+      43.1,
+      62.6
+    ]
+  },
+  {
+    "elo": 1750,
+    "games": 5,
+    "mean_loss": 40.0,
+    "median_loss": 43.7,
+    "stdev": 11.6,
+    "per_game": [
+      49.1,
+      32.9,
+      50.7,
+      43.7,
+      23.3
+    ]
+  },
+  {
+    "elo": 2000,
+    "games": 5,
+    "mean_loss": 31.4,
+    "median_loss": 33.0,
+    "stdev": 4.6,
+    "per_game": [
+      26.4,
+      33.0,
+      35.9,
+      35.1,
+      26.4
+    ]
+  },
+  {
+    "elo": 2300,
+    "games": 5,
+    "mean_loss": 22.7,
+    "median_loss": 24.3,
+    "stdev": 5.6,
+    "per_game": [
+      17.2,
+      24.3,
+      24.5,
+      30.3,
+      17.3
+    ]
+  },
+  {
+    "elo": 2600,
+    "games": 5,
+    "mean_loss": 19.3,
+    "median_loss": 16.6,
+    "stdev": 6.1,
+    "per_game": [
+      14.4,
+      19.6,
+      16.0,
+      16.6,
+      29.6
+    ]
+  },
+  {
+    "elo": 2900,
+    "games": 5,
+    "mean_loss": 14.8,
+    "median_loss": 15.3,
+    "stdev": 4.1,
+    "per_game": [
+      11.1,
+      10.2,
+      19.1,
+      18.3,
+      15.3
+    ]
+  }
+]
