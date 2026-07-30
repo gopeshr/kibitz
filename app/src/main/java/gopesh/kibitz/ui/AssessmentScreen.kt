@@ -1,0 +1,211 @@
+package gopesh.kibitz.ui
+
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import gopesh.kibitz.GameViewModel
+import gopesh.kibitz.chess.Color as SideColor
+import gopesh.kibitz.coach.LevelEstimate
+import gopesh.kibitz.coach.MoveAssessment
+import gopesh.kibitz.coach.MoveQuality
+import gopesh.kibitz.ui.theme.Brass
+import gopesh.kibitz.ui.theme.Muted
+import gopesh.kibitz.ui.theme.Parchment
+import gopesh.kibitz.ui.theme.Surface1
+
+/**
+ * The assessment game. The player has White; Kibitz replies and judges each move as it lands.
+ *
+ * Feedback appears move by move rather than only at the end, because a verdict you cannot
+ * connect to a specific move teaches nothing.
+ */
+@Composable
+fun AssessmentScreen(
+    game: GameViewModel,
+    playerName: String,
+    onComplete: (LevelEstimate) -> Unit,
+) {
+    LaunchedEffect(Unit) {
+        if (!game.isAssessing && !game.assessmentComplete) game.startAssessment()
+    }
+
+    LaunchedEffect(game.assessmentComplete) {
+        if (game.assessmentComplete) game.levelEstimate?.let(onComplete)
+    }
+
+    val done = game.assessments.size
+    val target = game.assessmentTarget.coerceAtLeast(1)
+    val progress by animateFloatAsState(
+        targetValue = (done.toFloat() / target).coerceIn(0f, 1f),
+        label = "assessment-progress",
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .systemBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SectionLabel("Level check")
+            Box(Modifier.weight(1f))
+            Text(
+                text = "Move ${(done + 1).coerceAtMost(target)} of $target",
+                color = Muted,
+                fontSize = 12.sp,
+            )
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(4.dp)
+                .clip(RoundedCornerShape(2.dp)),
+            color = Brass,
+            trackColor = Surface1,
+            drawStopIndicator = {},
+        )
+
+        Spacer(Modifier.weight(1f))
+
+        // The two name plates belong against the board, not floating at the screen edges,
+        // so they travel with it as one centred group.
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            PlayerStrip(
+                name = "Kibitz",
+                subtitle = if (game.engineThinking) "Thinking…" else "Steady",
+                isWhite = false,
+                isActive = game.position.sideToMove == SideColor.BLACK,
+                trailing = {
+                    if (game.engineThinking) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            color = Brass,
+                            strokeWidth = 2.dp,
+                        )
+                    }
+                },
+            )
+
+            BoardWithEvalBar(game = game, modifier = Modifier.fillMaxWidth())
+
+            PlayerStrip(
+                name = playerName,
+                subtitle = "You — White",
+                isWhite = true,
+                isActive = game.position.sideToMove == SideColor.WHITE,
+                trailing = { EvalReadout(game.evaluation) },
+            )
+        }
+
+        Spacer(Modifier.weight(1f))
+
+        FeedbackCard(latest = game.latestAssessment, thinking = game.engineThinking)
+    }
+
+    game.promotionPrompt?.let {
+        PromotionDialog(
+            side = game.position.sideToMove,
+            onPick = game::choosePromotion,
+            onDismiss = game::cancelPromotion,
+        )
+    }
+}
+
+/** Centipawns are engine units; players think in pawns, so show pawns to one decimal. */
+internal fun pawnsLost(centipawns: Int): String {
+    val whole = centipawns / 100
+    val tenths = (centipawns % 100) / 10
+    return "$whole.$tenths"
+}
+
+/** The running commentary: what the last move was worth, and what would have been better. */
+@Composable
+private fun FeedbackCard(latest: MoveAssessment?, thinking: Boolean) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Surface1)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        if (latest == null) {
+            Text(
+                text = if (thinking) "Let me think…" else "Make your first move whenever you're ready.",
+                color = Muted,
+                fontSize = 13.sp,
+            )
+            return@Box
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = latest.san,
+                    color = Parchment,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = FontFamily.Monospace,
+                )
+                Text(
+                    text = latest.quality.label,
+                    color = latest.quality.accent,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(start = 10.dp),
+                )
+                if (latest.quality != MoveQuality.BEST && latest.centipawnLoss > 0) {
+                    Text(
+                        text = "−${pawnsLost(latest.centipawnLoss)}",
+                        color = Muted,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
+                }
+            }
+            val better = latest.bestSan
+            Text(
+                text = when {
+                    latest.quality == MoveQuality.BEST -> "Nothing was better here."
+                    better != null -> "$better was stronger."
+                    else -> "There was a better option."
+                },
+                color = Muted,
+                fontSize = 12.sp,
+            )
+        }
+    }
+}

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Foreground layer: the eye that gives Kibitz its name — something watching your game.
+  Kept inside the 72x72 safe zone of the 108x108 viewport so no launcher mask clips it.
+  The lens is filled as well as stroked, so it reads as an eye over either square shade.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <path
+        android:fillColor="#F7F1E6"
+        android:strokeColor="#1E1A17"
+        android:strokeWidth="5"
+        android:strokeLineJoin="round"
+        android:strokeLineCap="round"
+        android:pathData="M28,54 Q54,32 80,54 Q54,76 28,54 Z" />
+
+    <path
+        android:fillColor="#1E1A17"
+        android:pathData="M45.5,54a8.5,8.5 0 1,0 17,0a8.5,8.5 0 1,0 -17,0z" />
+</vector>

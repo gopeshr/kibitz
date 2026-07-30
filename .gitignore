@@ -1,0 +1,18 @@
+*.iml
+.gradle/
+local.properties
+.idea/
+.DS_Store
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+keystore.properties
+release.keystore
+
+# Stockfish neural networks. The big one is 104 MB and GitHub rejects any file over 100 MB,
+# so these are fetched and checksum-verified by the fetchStockfishNetworks Gradle task
+# instead of being committed. See README.md.
+app/src/main/assets/*.nnue
