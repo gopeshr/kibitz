@@ -90,12 +90,33 @@ Unit tests cover the rules engine (perft node counts against published values), 
 evaluation-bar mapping, level estimation, and UCI output parsing. Stockfish itself is native
 and cannot run in JVM unit tests — that is one of the reasons the fallback engine exists.
 
-## Licensing — unresolved
+## Licence
 
-**This repository vendors Stockfish, which is GPLv3** (see
-`app/src/main/cpp/stockfish/COPYING.txt`). Distributing Kibitz with Stockfish compiled in
-carries GPLv3 obligations for the combined work. No project licence has been chosen yet; that
-decision needs making before any release.
+Kibitz is licensed under the **GNU General Public License v3** — see [LICENSE](LICENSE).
+
+    Copyright (C) 2026 Kibitz authors
+
+    This program is free software: you can redistribute it and/or modify it under the terms
+    of the GNU General Public License as published by the Free Software Foundation, either
+    version 3 of the License, or (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+    without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+    See the GNU General Public License for more details.
+
+GPLv3 is not a preference here, it is a consequence: this repository vendors
+[Stockfish](https://github.com/official-stockfish/Stockfish) (`app/src/main/cpp/stockfish`),
+which is GPLv3, and a work combining it must be licensed compatibly. A permissive licence such
+as MIT is not available for the project as a whole, because it cannot be applied to Stockfish's
+code. Stockfish's own licence text is retained at `app/src/main/cpp/stockfish/COPYING.txt`.
+
+Practical consequence: **a closed-source release of this app is not possible in this
+configuration.** Stockfish is GPLv3 and not AGPL, so it has no network-use clause — running the
+engine behind a server rather than inside the app would keep GPL obligations off the client.
+Everything already talks to the `ChessEngine` interface rather than to Stockfish directly, so
+that move stays a contained change if it is ever wanted.
+
+This is a summary, not legal advice.
 
 ## Known limitations
 
