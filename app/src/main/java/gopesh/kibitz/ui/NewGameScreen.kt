@@ -218,6 +218,17 @@ fun NewGameScreen(
             }
         }
 
+        // Above the opponent picker, not below the whole screen. Nothing checks for updates on
+        // its own — by design, the app only reaches the network when asked — so if the only
+        // place to ask is at the bottom of a long scroll, the answer is that there is no way to
+        // update, which is how it was read.
+        if (updates != null) {
+            Spacer(Modifier.height(22.dp))
+            SectionLabel("This build")
+            Spacer(Modifier.height(8.dp))
+            updates()
+        }
+
         Spacer(Modifier.height(22.dp))
 
         SectionLabel("Opponent strength")
@@ -248,13 +259,6 @@ fun NewGameScreen(
                     modifier = Modifier.weight(1f),
                 )
             }
-        }
-
-        if (updates != null) {
-            Spacer(Modifier.height(18.dp))
-            SectionLabel("This build")
-            Spacer(Modifier.height(8.dp))
-            updates()
         }
 
         Spacer(Modifier.height(20.dp))
