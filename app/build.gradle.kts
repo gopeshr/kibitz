@@ -112,11 +112,10 @@ android {
         }
     }
 
-    androidResources {
-        // NNUE weights are high-entropy; deflating 104 MB buys almost nothing and costs
-        // build time on every assemble.
-        noCompress += "nnue"
-    }
+    // The NNUE assets are deliberately left compressed. They were assumed to be high-entropy
+    // and excluded from compression; measured, the big net deflates 104 MB -> 70 MB, so storing
+    // it uncompressed cost ~34 MB of download — enough to push the APK over Play's 100 MB limit
+    // — to save inflating it once, during a copy the app performs anyway.
 
     testOptions {
         // Robolectric runs the Room database in JVM unit tests, so the history layer is

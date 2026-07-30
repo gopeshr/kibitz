@@ -5,6 +5,7 @@ import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.security.MessageDigest
 
 /**
  * Gets Stockfish's neural networks out of the APK and onto the filesystem, because Stockfish
@@ -38,14 +39,12 @@ object NnueNetworks {
 
         for (name in NETWORKS) {
             val destination = File(target, name)
-            val expected = assetSize(context, name)
-            if (expected <= 0) {
-                Log.e(TAG, "asset $name missing from the APK")
-                return@withContext null
-            }
-            if (destination.length() == expected) continue
+            // Already there: trust it and read nothing. Comparing against the asset's length
+            // would mean decompressing 104 MB on every launch just to learn its size, since
+            // the assets are stored deflated and AssetManager cannot report that cheaply.
+            if (destination.length() > 0) continue
 
-            Log.i(TAG, "extracting $name (${expected / 1_048_576} MB)")
+            Log.i(TAG, "extracting $name")
             val copied = runCatching {
                 context.assets.open(name).use { input ->
                     destination.outputStream().buffered(1 shl 16).use { output ->
@@ -53,30 +52,38 @@ object NnueNetworks {
                     }
                 }
             }
-            if (copied.isFailure || destination.length() != expected) {
+            if (copied.isFailure) {
                 Log.e(TAG, "failed to extract $name", copied.exceptionOrNull())
                 destination.delete()
                 return@withContext null
             }
+
+            // Verified on arrival rather than on every launch. Stockfish names each network
+            // after the first 12 hex digits of its SHA-256, so the filename is the checksum —
+            // the same trick the Gradle fetch task uses, and it catches a truncated copy that
+            // a length check could not.
+            val expected = name.removePrefix("nn-").removeSuffix(".nnue")
+            val actual = sha256Prefix(destination)
+            if (actual != expected) {
+                Log.e(TAG, "$name failed verification: expected $expected, got $actual")
+                destination.delete()
+                return@withContext null
+            }
+            Log.i(TAG, "extracted and verified $name (${destination.length() / 1_048_576} MB)")
         }
         target
     }
 
-    /** Uncompressed length of a bundled asset, or -1 if it is not there. */
-    private fun assetSize(context: Context, name: String): Long =
-        runCatching {
-            context.assets.openFd(name).use { it.length }
-        }.recoverCatching {
-            // openFd only works for uncompressed assets; fall back to counting bytes.
-            context.assets.open(name).use { input ->
-                var total = 0L
-                val buffer = ByteArray(1 shl 16)
-                while (true) {
-                    val read = input.read(buffer)
-                    if (read < 0) break
-                    total += read
-                }
-                total
+    private fun sha256Prefix(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { stream ->
+            val buffer = ByteArray(1 shl 16)
+            while (true) {
+                val read = stream.read(buffer)
+                if (read < 0) break
+                digest.update(buffer, 0, read)
             }
-        }.getOrDefault(-1L)
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }.take(12)
+    }
 }

@@ -123,10 +123,19 @@ simply not offered the app, which is better than being offered one that crashes.
 
 ### Size
 
-The networks make the app large: roughly **120 MB packaged**, plus about **108 MB extracted**
-at first launch, because Stockfish opens them as ordinary files and cannot read Android assets
-directly. That is ~230 MB of device storage. Delivering the big network on demand instead of
-bundling it is the obvious pre-release optimisation; the engine code would not change.
+The networks dominate: **77 MB packaged** (APK) / **78 MB** as an App Bundle, plus about
+**108 MB extracted** at first launch, because Stockfish opens them as ordinary files and cannot
+read an Android asset directly. So roughly 185 MB of device storage.
+
+The assets are stored **compressed**. They were originally excluded from compression on the
+assumption that neural-network weights are high-entropy; measured, the big net deflates
+104 MB -> 70 MB, and leaving it uncompressed cost ~34 MB of download — enough to push the APK
+past Play's 100 MB limit — to avoid inflating it once during a copy the app performs anyway.
+Both nets are SHA-256 verified against their own filenames as they are extracted.
+
+If a much smaller install is ever wanted, the mechanism is Play Asset Delivery, not a
+self-hosted download: Play hosts asset packs at no cost, and `tests.stockfishchess.org` is the
+Stockfish project's testing infrastructure, not a CDN to point an app's users at.
 
 ## Architecture
 
