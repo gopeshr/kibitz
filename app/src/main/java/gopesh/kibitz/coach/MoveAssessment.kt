@@ -51,10 +51,18 @@ data class MoveAssessment(
 /**
  * Judges a single move by asking the engine what the position was worth before and after.
  */
-class MoveAnalyst(private val engine: ChessEngine) {
+class MoveAnalyst(
+    private val engine: ChessEngine,
+    /**
+     * Reviewing a finished game means one of these per move played, so it runs shallower than
+     * live coaching does. Deep enough to price a mistake, shallow enough to finish while the
+     * player is still reading the result.
+     */
+    private val depth: Int = ChessEngine.DEFAULT_ANALYSIS_DEPTH,
+) {
 
     suspend fun assess(before: Position, played: Move): MoveAssessment {
-        val cost = engine.priceMove(before, played)
+        val cost = engine.priceMove(before, played, depth)
         val loss = cost.centipawnLoss
 
         return MoveAssessment(

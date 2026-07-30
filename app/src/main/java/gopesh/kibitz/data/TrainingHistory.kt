@@ -88,6 +88,7 @@ class TrainingHistory(private val dao: HistoryDao) {
             DrawReason.STALEMATE,
             DrawReason.FIFTY_MOVE,
             DrawReason.INSUFFICIENT_MATERIAL,
+            DrawReason.THREEFOLD_REPETITION,
             -> "1/2-1/2"
         }
         is Status.Ongoing -> "unfinished"

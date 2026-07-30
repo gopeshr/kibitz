@@ -445,6 +445,22 @@ class Position(
             append(fullmoveNumber)
         }
 
+    /**
+     * Identifies a position for repetition purposes: placement, side to move, castling rights
+     * and en passant, but *not* the move counters — those differ on every repetition by
+     * definition, and including them would mean no position ever repeated.
+     *
+     * Repetition cannot be answered by a position alone, only by a game, so counting happens
+     * where the move history lives.
+     *
+     * Approximation: FIDE only counts en passant when the capture is actually available, while
+     * this keys on the square being set at all. It can therefore miss a genuine repetition in
+     * the rare case where a pawn double-push created an en passant square nobody could use. It
+     * never reports a repetition that did not happen.
+     */
+    val repetitionKey: String
+        get() = fen.split(' ').take(4).joinToString(" ")
+
     override fun toString(): String = fen
 
     companion object {

@@ -104,7 +104,7 @@ data class Move(val from: Int, val to: Int, val promotion: PieceType? = null) {
     override fun toString(): String = uci
 }
 
-enum class DrawReason { STALEMATE, FIFTY_MOVE, INSUFFICIENT_MATERIAL }
+enum class DrawReason { STALEMATE, FIFTY_MOVE, INSUFFICIENT_MATERIAL, THREEFOLD_REPETITION }
 
 sealed interface Status {
     /** Play continues. [inCheck] refers to the side to move. */

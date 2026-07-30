@@ -22,8 +22,13 @@ Kotlin + Jetpack Compose, with Stockfish 18 as the engine.
 - **Play Kibitz at your level** — an opponent ladder from Beginner to full strength, limited
   properly through Stockfish's own `UCI_Elo` rather than by making it blunder on purpose. The
   level nearest your estimated rating is preselected. Either colour, or random.
+- **Games end properly** — checkmate, stalemate, the fifty-move rule, insufficient material and
+  threefold repetition, with a result stated from your side of the board.
+- **Automatic post-game review** — every game you finish is analysed move by move and filed, so
+  the mistakes in it become training material rather than vanishing.
 
-Not done yet: no LLM coaching layer, and no drills built from the stored mistakes.
+Not done yet: no drills built from the stored mistakes, no game-history browser, and no LLM
+coaching layer (deliberately deferred — everything above runs entirely on the phone).
 
 ## How the level bands were calibrated
 

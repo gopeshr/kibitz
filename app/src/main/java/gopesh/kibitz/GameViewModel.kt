@@ -5,11 +5,13 @@ import android.util.Log
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import gopesh.kibitz.chess.Color
+import gopesh.kibitz.chess.DrawReason
 import gopesh.kibitz.chess.Move
 import gopesh.kibitz.chess.PieceType
 import gopesh.kibitz.chess.Position
@@ -158,7 +160,115 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     val legalMoves: List<Move> by derivedStateOf { position.legalMoves() }
 
-    val status: Status by derivedStateOf { position.status() }
+    /**
+     * How many times each position has occurred this game. Repetition is a property of the
+     * game, not of a position, so it is counted here rather than in [Position].
+     */
+    private val repetitionCounts = mutableStateMapOf<String, Int>()
+
+    /**
+     * The game's outcome, with threefold repetition layered on top of what a single position
+     * can determine by itself.
+     */
+    val status: Status by derivedStateOf {
+        val fromPosition = position.status()
+        // A mate or a stalemate outranks a repetition; the game ended on the board.
+        if (fromPosition is Status.Ongoing &&
+            (repetitionCounts[position.repetitionKey] ?: 0) >= 3
+        ) {
+            Status.Draw(DrawReason.THREEFOLD_REPETITION)
+        } else {
+            fromPosition
+        }
+    }
+
+    val isGameOver: Boolean by derivedStateOf { status !is Status.Ongoing }
+
+    /** True once a finished game has been analysed and filed away. */
+    var gameRecorded by mutableStateOf(false)
+        private set
+
+    // -------------------------------------------------------- post-game review
+
+    var reviewing by mutableStateOf(false)
+        private set
+
+    var reviewDone by mutableStateOf(0)
+        private set
+
+    var reviewTotal by mutableStateOf(0)
+        private set
+
+    /** Every move the player made in the finished game, judged. */
+    val reviewedMoves = mutableStateListOf<MoveAssessment>()
+
+    var reviewSummary by mutableStateOf<LevelEstimate?>(null)
+        private set
+
+    /**
+     * Reviews and files a finished game.
+     *
+     * Runs automatically rather than behind a button: an unreviewed game is invisible to the
+     * app afterwards, and the mistakes in it are exactly the material training needs. Analysis
+     * happens after the game rather than during it so play is never slowed by it.
+     */
+    private fun reviewFinishedGame() {
+        // Set immediately, not inside the coroutine, or a second game-ending move could start
+        // a duplicate review before the first has begun.
+        gameRecorded = true
+
+        val playerColor = engineSide?.opposite ?: return
+        val playerPlies = plies.filter { it.before.sideToMove == playerColor }
+        if (playerPlies.isEmpty()) return
+
+        val finalPosition = position
+        val level = opponentLevel
+        val engine = engine()
+        val playerIsWhite = playerColor == Color.WHITE
+
+        viewModelScope.launch {
+            reviewing = true
+            reviewDone = 0
+            reviewTotal = playerPlies.size
+            reviewedMoves.clear()
+            try {
+                val analyst = MoveAnalyst(engine, depth = REVIEW_DEPTH)
+                val fens = ArrayList<String>(playerPlies.size)
+                val ucis = ArrayList<String>(playerPlies.size)
+                for (ply in playerPlies) {
+                    reviewedMoves.add(analyst.assess(ply.before, ply.move))
+                    fens.add(ply.before.fen)
+                    ucis.add(ply.move.uci)
+                    reviewDone = reviewedMoves.size
+                }
+                val summary = LevelEstimator.estimate(reviewedMoves.toList())
+                reviewSummary = summary
+
+                runCatching {
+                    history.recordGame(
+                        assessments = reviewedMoves.toList(),
+                        fensBefore = fens,
+                        ucis = ucis,
+                        estimate = summary,
+                        playerIsWhite = playerIsWhite,
+                        wasLevelCheck = false,
+                        opponentLevel = level.name,
+                        engineId = engine.id,
+                        finalPosition = finalPosition,
+                        playedAt = System.currentTimeMillis(),
+                    )
+                    refreshHistorySummary()
+                }.onFailure { Log.e(TAG, "could not record the game", it) }
+            } finally {
+                reviewing = false
+            }
+        }
+    }
+
+    /** Plays the same opponent again, same colour. */
+    fun rematch() {
+        startGame(opponentLevel, playerIsWhite = engineSide != Color.WHITE)
+    }
 
     val legalTargets: Set<Int> by derivedStateOf {
         val from = selectedSquare ?: return@derivedStateOf emptySet()
@@ -245,6 +355,10 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun undo() {
         if (engineSide != null) return
         val last = plies.removeLastOrNull() ?: return
+        // Decrement before rewinding, or an undone position keeps its sighting and a later
+        // repetition is reported one move early.
+        val key = position.repetitionKey
+        repetitionCounts[key] = ((repetitionCounts[key] ?: 1) - 1).coerceAtLeast(0)
         position = last.before
         selectedSquare = null
         promotionPrompt = null
@@ -270,7 +384,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun loadFen(fen: String): Boolean = runCatching {
         val loaded = Position.fromFen(fen)
         plies.clear()
+        repetitionCounts.clear()
         position = loaded
+        countPosition()
         selectedSquare = null
         promotionPrompt = null
         refreshEvaluation()
@@ -325,16 +441,24 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     // --------------------------------------------------------------- private
 
     private fun acceptsInput(): Boolean =
-        promotionPrompt == null && !engineThinking && !assessmentComplete &&
+        promotionPrompt == null && !engineThinking && !assessmentComplete && !isGameOver &&
             position.sideToMove != engineSide
 
     private fun resetBoard() {
         plies.clear()
+        repetitionCounts.clear()
         position = Position.start()
+        countPosition()
         selectedSquare = null
         promotionPrompt = null
         lastMoveWasDrag = false
         engineThinking = false
+        gameRecorded = false
+        reviewing = false
+        reviewDone = 0
+        reviewTotal = 0
+        reviewedMoves.clear()
+        reviewSummary = null
         refreshEvaluation()
     }
 
@@ -348,7 +472,20 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         position = before.makeMove(move)
         selectedSquare = null
         lastMoveWasDrag = wasDragged
+        countPosition()
         refreshEvaluation()
+
+        // An ordinary game that has just ended gets reviewed and filed. Level checks have
+        // their own path, which already collected assessments as they were played.
+        if (assessmentTarget == 0 && engineSide != null && !gameRecorded && isGameOver) {
+            reviewFinishedGame()
+        }
+    }
+
+    /** Records the current position for repetition counting. */
+    private fun countPosition() {
+        val key = position.repetitionKey
+        repetitionCounts[key] = (repetitionCounts[key] ?: 0) + 1
     }
 
     private fun play(move: Move, wasDragged: Boolean = false) {
@@ -391,7 +528,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun reachedEndOfAssessment(): Boolean =
         assessmentTarget > 0 &&
-            (assessments.size >= assessmentTarget || position.legalMoves().isEmpty())
+            (assessments.size >= assessmentTarget || isGameOver)
 
     private fun finishAssessment() {
         val estimate = LevelEstimator.estimate(assessments.toList())
@@ -466,5 +603,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
          * assumed. See [gopesh.kibitz.coach.LevelCalibration.CALIBRATED_SAMPLE_MOVES].
          */
         const val DEFAULT_ASSESSMENT_MOVES = LevelCalibration.CALIBRATED_SAMPLE_MOVES
+
+        /**
+         * Post-game review depth. Reviewing runs one search pair per move played, so it sits
+         * below live coaching depth to finish while the result is still on screen.
+         */
+        const val REVIEW_DEPTH = 12
     }
 }

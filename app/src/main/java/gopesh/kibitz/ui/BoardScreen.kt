@@ -26,7 +26,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -63,6 +66,9 @@ fun BoardScreen(
     val engineSide = viewModel.engineSide
     val playerIsWhite = engineSide != SideColor.WHITE
 
+    // Reset every time a new game starts, so a dismissed card does not stay dismissed.
+    var showResult by remember(viewModel.plyCount == 0) { mutableStateOf(true) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -79,6 +85,13 @@ fun BoardScreen(
             position = position,
             status = status,
             evaluation = viewModel.evaluation,
+            // Once dismissed the result must still be reachable, or the player is stranded on
+            // a finished board.
+            onShowResult = if (engineSide != null && viewModel.isGameOver && !showResult) {
+                { showResult = true }
+            } else {
+                null
+            },
         )
 
         // Weighted spacers above and below centre the board in whatever height is left
@@ -156,6 +169,26 @@ fun BoardScreen(
             onDismiss = viewModel::cancelPromotion,
         )
     }
+
+    // Only against an engine: a two-player board has no "you" to report a result to.
+    if (engineSide != null && viewModel.isGameOver && showResult) {
+        GameOverCard(
+            status = status,
+            playerIsWhite = playerIsWhite,
+            reviewing = viewModel.reviewing,
+            reviewDone = viewModel.reviewDone,
+            reviewTotal = viewModel.reviewTotal,
+            summary = viewModel.reviewSummary,
+            onRematch = {
+                showResult = true
+                viewModel.rematch()
+            },
+            onNewOpponent = { onNewGame?.invoke() },
+            // Dismissing leaves the finished board visible to look over, and the card can be
+            // brought back from the status header.
+            onDismiss = { showResult = false },
+        )
+    }
 }
 
 /** Who is playing and what Kibitz currently thinks of them. */
@@ -197,7 +230,12 @@ private fun ProfileBar(profile: UserProfile, onRetakeAssessment: (() -> Unit)?) 
 }
 
 @Composable
-private fun StatusHeader(position: Position, status: Status, evaluation: EvalSnapshot?) {
+private fun StatusHeader(
+    position: Position,
+    status: Status,
+    evaluation: EvalSnapshot?,
+    onShowResult: (() -> Unit)? = null,
+) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         // A dot in the colour of whoever is on the clock.
         Box(
@@ -223,6 +261,11 @@ private fun StatusHeader(position: Position, status: Status, evaluation: EvalSna
             )
         }
         Box(Modifier.weight(1f))
+        if (onShowResult != null) {
+            TextButton(onClick = onShowResult) {
+                Text("Result", color = Brass, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
         EvalReadout(evaluation)
     }
 }
@@ -233,6 +276,7 @@ private fun headlineFor(position: Position, status: Status): String = when (stat
         DrawReason.STALEMATE -> "Draw — stalemate"
         DrawReason.FIFTY_MOVE -> "Draw — fifty-move rule"
         DrawReason.INSUFFICIENT_MATERIAL -> "Draw — insufficient material"
+        DrawReason.THREEFOLD_REPETITION -> "Draw — threefold repetition"
     }
     is Status.Ongoing ->
         if (status.inCheck) "${position.sideToMove.label} to move — check"
