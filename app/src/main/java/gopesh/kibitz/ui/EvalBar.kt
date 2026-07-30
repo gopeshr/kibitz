@@ -36,7 +36,13 @@ private val BAR_GAP = 10.dp
 @Composable
 fun BoardWithEvalBar(game: GameViewModel, modifier: Modifier = Modifier) {
     BoxWithConstraints(modifier) {
-        val side = maxWidth - BAR_WIDTH - BAR_GAP
+        // The board is square, so width alone used to decide its size. Height has to be
+        // honoured too: on a short screen a width-sized square grows past the bottom of the
+        // window and carries whatever sits below it — the move log and the controls row,
+        // Resign included — off the edge, where it cannot be seen or tapped.
+        // maxHeight is Dp.Infinity when the parent leaves height unbounded, and minOf then
+        // picks the width as before.
+        val side = minOf(maxWidth - BAR_WIDTH - BAR_GAP, maxHeight)
 
         Row {
             EvalBar(

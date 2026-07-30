@@ -97,47 +97,54 @@ fun BoardScreen(
             },
         )
 
-        // Weighted spacers above and below centre the board in whatever height is left
-        // between the header and the controls, on any screen.
-        Spacer(Modifier.weight(1f))
-
-        // With an engine opponent the board gets name plates, the same way the level check
-        // does, so it is always clear who is on the clock and how strong they are.
-        if (engineSide != null) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                PlayerStrip(
-                    name = "Kibitz",
-                    subtitle = if (viewModel.engineThinking) {
-                        "Thinking…"
-                    } else {
-                        viewModel.opponentLevel.label +
-                            (viewModel.opponentLevel.uciElo?.let { " · $it" } ?: "")
-                    },
-                    isWhite = engineSide == SideColor.WHITE,
-                    isActive = position.sideToMove == engineSide,
-                    trailing = {
-                        if (viewModel.engineThinking) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                color = Brass,
-                                strokeWidth = 2.dp,
-                            )
-                        }
-                    },
-                )
+        // The board gets the height that is left over after the fixed chrome, and is centred
+        // in it. It used to sit between two weighted spacers while sizing itself from the
+        // screen width alone, so on a short screen it overflowed and pushed the move log and
+        // the entire controls row — Resign with them — off the bottom of the window.
+        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+            // With an engine opponent the board gets name plates, the same way the level check
+            // does, so it is always clear who is on the clock and how strong they are.
+            if (engineSide != null) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PlayerStrip(
+                        name = "Kibitz",
+                        subtitle = if (viewModel.engineThinking) {
+                            "Thinking…"
+                        } else {
+                            viewModel.opponentLevel.label +
+                                (viewModel.opponentLevel.uciElo?.let { " · $it" } ?: "")
+                        },
+                        isWhite = engineSide == SideColor.WHITE,
+                        isActive = position.sideToMove == engineSide,
+                        trailing = {
+                            if (viewModel.engineThinking) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    color = Brass,
+                                    strokeWidth = 2.dp,
+                                )
+                            }
+                        },
+                    )
+                    // The plates are measured first; fill = false keeps the board at its
+                    // square size when there is more height than it needs.
+                    BoardWithEvalBar(
+                        game = viewModel,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f, fill = false),
+                    )
+                    PlayerStrip(
+                        name = profile?.shortName ?: "You",
+                        subtitle = "You — ${if (playerIsWhite) "White" else "Black"}",
+                        isWhite = playerIsWhite,
+                        isActive = position.sideToMove != engineSide,
+                    )
+                }
+            } else {
                 BoardWithEvalBar(game = viewModel, modifier = Modifier.fillMaxWidth())
-                PlayerStrip(
-                    name = profile?.shortName ?: "You",
-                    subtitle = "You — ${if (playerIsWhite) "White" else "Black"}",
-                    isWhite = playerIsWhite,
-                    isActive = position.sideToMove != engineSide,
-                )
             }
-        } else {
-            BoardWithEvalBar(game = viewModel, modifier = Modifier.fillMaxWidth())
         }
-
-        Spacer(Modifier.weight(1f))
 
         MoveLog(moveLog = viewModel.moveLog)
 

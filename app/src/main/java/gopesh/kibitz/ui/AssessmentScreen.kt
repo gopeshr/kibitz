@@ -118,39 +118,47 @@ fun AssessmentScreen(
             drawStopIndicator = {},
         )
 
-        Spacer(Modifier.weight(1f))
+        // The board takes only the height left over after the progress bar above and the
+        // feedback card below, so a short screen shrinks the board instead of pushing the
+        // feedback — the whole point of this screen — off the bottom edge.
+        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+            // The two name plates belong against the board, not floating at the screen edges,
+            // so they travel with it as one centred group.
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                PlayerStrip(
+                    name = "Kibitz",
+                    subtitle = if (game.engineThinking) "Thinking…" else "Steady",
+                    isWhite = false,
+                    isActive = game.position.sideToMove == SideColor.BLACK,
+                    trailing = {
+                        if (game.engineThinking) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = Brass,
+                                strokeWidth = 2.dp,
+                            )
+                        }
+                    },
+                )
 
-        // The two name plates belong against the board, not floating at the screen edges,
-        // so they travel with it as one centred group.
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            PlayerStrip(
-                name = "Kibitz",
-                subtitle = if (game.engineThinking) "Thinking…" else "Steady",
-                isWhite = false,
-                isActive = game.position.sideToMove == SideColor.BLACK,
-                trailing = {
-                    if (game.engineThinking) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            color = Brass,
-                            strokeWidth = 2.dp,
-                        )
-                    }
-                },
-            )
+                BoardWithEvalBar(
+                    game = game,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f, fill = false),
+                )
 
-            BoardWithEvalBar(game = game, modifier = Modifier.fillMaxWidth())
-
-            PlayerStrip(
-                name = playerName,
-                subtitle = "You — White",
-                isWhite = true,
-                isActive = game.position.sideToMove == SideColor.WHITE,
-                trailing = { EvalReadout(game.evaluation) },
-            )
+                PlayerStrip(
+                    name = playerName,
+                    subtitle = "You — White",
+                    isWhite = true,
+                    isActive = game.position.sideToMove == SideColor.WHITE,
+                    trailing = { EvalReadout(game.evaluation) },
+                )
+            }
         }
 
-        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.height(12.dp))
 
         FeedbackCard(latest = game.latestAssessment, thinking = game.engineThinking)
     }
