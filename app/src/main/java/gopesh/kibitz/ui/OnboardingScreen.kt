@@ -35,6 +35,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import gopesh.kibitz.coach.LevelCalibration.CALIBRATED_SAMPLE_MOVES
 import gopesh.kibitz.ui.theme.Brass
 import gopesh.kibitz.ui.theme.Ink
 import gopesh.kibitz.ui.theme.Muted
@@ -90,7 +91,10 @@ fun OnboardingScreen(onStart: (String) -> Unit) {
         ) {
             SectionLabel("How this starts")
             StepLine("1", "Tell me your name.")
-            StepLine("2", "Play a quick game against me — about 12 moves.")
+            // Read from the calibration rather than written out, because it already drifted
+            // once: this promised 12 moves long after the sample grew to 30, so the level check
+            // asked for more than two and a half times the moves the player had agreed to.
+            StepLine("2", "Play a quick game against me — $CALIBRATED_SAMPLE_MOVES moves.")
             StepLine("3", "I'll judge every move you make and estimate your level.")
             Text(
                 text = "One short game can only give a rough range, not a real rating. " +

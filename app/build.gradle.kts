@@ -80,11 +80,11 @@ android {
         minSdk = 26
         targetSdk = 34
         // versionCode must increase or Android refuses to install the update at all.
-        versionCode = 2
+        versionCode = 3
         // Must match the git tag it ships under. The in-app updater compares this against the
         // tag on GitHub, so shipping a v0.2.0 release whose versionName still said 0.1.0 would
         // leave the app offering the update it just installed, over and over.
-        versionName = "0.2.0"
+        versionName = "0.2.1"
 
         externalNativeBuild {
             cmake {
