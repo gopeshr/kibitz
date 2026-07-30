@@ -27,8 +27,11 @@ Kotlin + Jetpack Compose, with Stockfish 18 as the engine.
 - **Automatic post-game review** — every game you finish is analysed move by move and filed, so
   the mistakes in it become training material rather than vanishing.
 
-Not done yet: no drills built from the stored mistakes, no game-history browser, and no LLM
-coaching layer (deliberately deferred — everything above runs entirely on the phone).
+- **Practise your own mistakes** — every blunder becomes a puzzle from the exact position it
+  happened in, unsolved-hardest first, with attempts tracked so solved ones sink down the queue.
+
+Not done yet: no game-history browser, and no LLM coaching layer (deliberately deferred —
+everything above runs entirely on the phone).
 
 ## How the level bands were calibrated
 

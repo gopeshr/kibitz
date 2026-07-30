@@ -6,6 +6,7 @@ import gopesh.kibitz.chess.DrawReason
 import gopesh.kibitz.chess.Position
 import gopesh.kibitz.chess.Status
 import gopesh.kibitz.coach.LevelCalibration
+import gopesh.kibitz.coach.Drill
 import gopesh.kibitz.coach.LevelEstimate
 import gopesh.kibitz.coach.MoveAssessment
 
@@ -78,9 +79,36 @@ class TrainingHistory(private val dao: HistoryDao) {
     suspend fun drillCandidates(limit: Int = 20): List<MoveRecord> =
         dao.costliestMoves(minimumLoss = 250, limit = limit)
 
+    /**
+     * The next drills to practise, hardest-unsolved first, already rebuilt into positions.
+     *
+     * Records that cannot be turned into an answerable puzzle are dropped here rather than
+     * being handed to the UI to fail on.
+     */
+    suspend fun drillQueue(limit: Int = 30): List<Drill> =
+        dao.drillQueue(minimumLoss = DRILL_MINIMUM_LOSS, limit = limit)
+            .mapNotNull { Drill.from(it) }
+
+    suspend fun drillProgress(): DrillProgress = dao.drillProgress(DRILL_MINIMUM_LOSS)
+
+    suspend fun recordDrillAttempt(moveId: Long, correct: Boolean, at: Long) {
+        dao.insertDrillAttempt(DrillAttempt(moveId = moveId, attemptedAt = at, correct = correct))
+    }
+
+    /** Every move of a stored game, for reviewing it later. */
+    suspend fun movesFor(gameId: Long): List<MoveRecord> = dao.movesFor(gameId)
+
     suspend fun qualityBreakdown(): List<QualityCount> = dao.qualityBreakdown()
 
     suspend fun accuracyTrend(): List<Int> = dao.accuracyTrend()
+
+    private companion object {
+        /**
+         * Below this a "mistake" is not worth drilling: at 1.2 pawns something concrete went
+         * wrong, whereas a 0.4 inaccuracy usually has no single findable answer.
+         */
+        const val DRILL_MINIMUM_LOSS = 120
+    }
 
     private fun resultOf(position: Position): String = when (val status = position.status()) {
         is Status.Checkmate -> if (status.winner == Color.WHITE) "1-0" else "0-1"

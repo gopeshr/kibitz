@@ -91,6 +91,46 @@ interface HistoryDao {
     )
     suspend fun accuracyTrend(limit: Int = 50): List<Int>
 
+    // ------------------------------------------------------------------ drills
+
+    @Insert
+    suspend fun insertDrillAttempt(attempt: DrillAttempt)
+
+    /**
+     * Mistakes worth drilling, hardest-still-unsolved first.
+     *
+     * Requires [MoveRecord.bestSan]: a puzzle with no known answer cannot be marked right or
+     * wrong. Positions already solved sink to the bottom rather than disappearing, so there is
+     * always something to practise once the backlog is cleared.
+     */
+    @Query(
+        """
+        SELECT m.* FROM moves m
+        LEFT JOIN (
+            SELECT moveId, MAX(CASE WHEN correct THEN 1 ELSE 0 END) AS solved
+            FROM drill_attempts GROUP BY moveId
+        ) a ON a.moveId = m.id
+        WHERE m.centipawnLoss >= :minimumLoss
+          AND m.byFullStrengthEngine = 1
+          AND m.bestSan IS NOT NULL
+        ORDER BY COALESCE(a.solved, 0) ASC, m.centipawnLoss DESC
+        LIMIT :limit
+        """
+    )
+    suspend fun drillQueue(minimumLoss: Int = 120, limit: Int = 30): List<MoveRecord>
+
+    @Query(
+        """
+        SELECT
+          (SELECT COUNT(*) FROM moves
+             WHERE centipawnLoss >= :minimumLoss AND byFullStrengthEngine = 1
+               AND bestSan IS NOT NULL) AS available,
+          (SELECT COUNT(DISTINCT moveId) FROM drill_attempts) AS attempted,
+          (SELECT COUNT(DISTINCT moveId) FROM drill_attempts WHERE correct) AS solved
+        """
+    )
+    suspend fun drillProgress(minimumLoss: Int = 120): DrillProgress
+
     @Query("DELETE FROM games")
     suspend fun deleteAllGames()
 }

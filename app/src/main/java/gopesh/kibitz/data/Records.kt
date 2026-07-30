@@ -63,8 +63,41 @@ data class MoveRecord(
     @ColumnInfo(defaultValue = "1") val byFullStrengthEngine: Boolean,
 )
 
+/**
+ * One attempt at a drill built from a past mistake.
+ *
+ * A separate table rather than a counter on the move, because *when* something was attempted
+ * and whether it was got right that time is what makes revisiting it schedulable later. A
+ * single "solved" flag would throw that away.
+ */
+@Entity(
+    tableName = "drill_attempts",
+    foreignKeys = [
+        ForeignKey(
+            entity = MoveRecord::class,
+            parentColumns = ["id"],
+            childColumns = ["moveId"],
+            onDelete = ForeignKey.CASCADE,
+        )
+    ],
+    indices = [Index("moveId")],
+)
+data class DrillAttempt(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val moveId: Long,
+    val attemptedAt: Long,
+    val correct: Boolean,
+)
+
 /** How many moves of each quality the player has made. */
 data class QualityCount(val quality: String, val count: Int)
+
+/** Drill progress across everything the player has been asked. */
+data class DrillProgress(
+    val available: Int,
+    val attempted: Int,
+    val solved: Int,
+)
 
 /** Aggregate accuracy, restricted to moves judged by a full-strength engine. */
 data class AccuracySummary(

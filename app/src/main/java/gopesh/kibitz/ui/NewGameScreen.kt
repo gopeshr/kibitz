@@ -59,6 +59,7 @@ enum class SideChoice(val label: String) { WHITE("White"), BLACK("Black"), RANDO
 fun NewGameScreen(
     profile: UserProfile?,
     onStart: (OpponentLevel, Boolean) -> Unit,
+    onPractise: (() -> Unit)? = null,
     onCancel: (() -> Unit)? = null,
 ) {
     val matched = remember(profile) {
@@ -97,6 +98,34 @@ fun NewGameScreen(
                     color = Muted,
                     fontSize = 12.sp,
                 )
+            }
+        }
+
+        if (onPractise != null) {
+            Spacer(Modifier.height(20.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Surface1)
+                    .clickable(onClick = onPractise)
+                    .padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = "Practise your mistakes",
+                        color = Parchment,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = "Positions from your own games, where you went wrong",
+                        color = Muted,
+                        fontSize = 11.sp,
+                    )
+                }
+                Text("›", color = Brass, fontSize = 22.sp)
             }
         }
 

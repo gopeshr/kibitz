@@ -176,4 +176,78 @@ class TrainingHistoryTest {
         assertTrue(history.recentGames().isEmpty())
         assertTrue(history.drillCandidates().isEmpty())
     }
+
+    // ------------------------------------------------------------------ drills
+
+    /**
+     * Room validates a hand-written migration's DDL against what it would have generated, and
+     * refuses to open the database if they differ. Building the database here with the drill
+     * table in the schema is what proves the migration SQL is right.
+     */
+    @Test
+    fun theDrillTableMatchesWhatRoomExpects() = runBlocking {
+        // Reaching it at all means the schema validated on open.
+        val progress = history.drillProgress()
+        assertEquals(0, progress.available)
+        assertEquals(0, progress.attempted)
+        assertEquals(0, progress.solved)
+    }
+
+    @Test
+    fun onlyMistakesWithAKnownAnswerAreDrillable() = runBlocking {
+        val id = history.recordGame(
+            assessments = listOf(
+                assessment(400).copy(bestSan = "Qxf7"),
+                // Costly, but nothing better was recorded, so it cannot be marked right.
+                assessment(500).copy(bestSan = null),
+                // A known answer, but too small a slip to be worth drilling.
+                assessment(30).copy(bestSan = "e4"),
+            ),
+            fensBefore = List(3) { Position.START_FEN },
+            ucis = List(3) { "e2e4" },
+            estimate = estimate(310, 2),
+            playerIsWhite = true,
+            wasLevelCheck = false,
+            opponentLevel = "CLUB",
+            engineId = "stockfish-18",
+            finalPosition = Position.start(),
+            playedAt = 1L,
+        )
+        assertTrue(id > 0)
+        assertEquals(1, history.drillProgress().available)
+    }
+
+    @Test
+    fun attemptsAreRecordedAndCounted() = runBlocking {
+        record(listOf(400))
+        val moveId = database.historyDao().recentGames(1).first()
+            .let { database.historyDao().movesFor(it.id) }.first().id
+
+        history.recordDrillAttempt(moveId, correct = false, at = 10L)
+        assertEquals(1, history.drillProgress().attempted)
+        assertEquals(0, history.drillProgress().solved)
+
+        history.recordDrillAttempt(moveId, correct = true, at = 20L)
+        // Two attempts at one position still counts as one position attempted, now solved.
+        assertEquals(1, history.drillProgress().attempted)
+        assertEquals(1, history.drillProgress().solved)
+    }
+
+    /** Unsolved mistakes must come first, or practice repeats what is already known. */
+    @Test
+    fun unsolvedDrillsAreQueuedAhead() = runBlocking {
+        record(listOf(500, 200))
+        val moves = database.historyDao()
+            .movesFor(database.historyDao().recentGames(1).first().id)
+        val worst = moves.maxBy { it.centipawnLoss }
+
+        // Worst first while nothing is solved.
+        assertEquals(worst.id, database.historyDao().drillQueue(120, 10).first().id)
+
+        history.recordDrillAttempt(worst.id, correct = true, at = 30L)
+
+        val queue = database.historyDao().drillQueue(120, 10)
+        assertEquals("the solved one sinks to the bottom", worst.id, queue.last().id)
+        assertEquals(2, queue.size)
+    }
 }

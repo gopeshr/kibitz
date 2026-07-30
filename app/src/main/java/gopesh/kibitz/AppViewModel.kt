@@ -12,7 +12,7 @@ import gopesh.kibitz.profile.UserProfile
 import kotlinx.coroutines.launch
 
 /** Which screen the app is showing. */
-enum class Route { LOADING, ONBOARDING, ASSESSMENT, RESULT, NEW_GAME, PLAY }
+enum class Route { LOADING, ONBOARDING, ASSESSMENT, RESULT, NEW_GAME, PLAY, DRILLS }
 
 /**
  * Owns the player's profile and which screen is in front.
@@ -78,6 +78,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun goToNewGame() {
         route = Route.NEW_GAME
+    }
+
+    fun goToDrills() {
+        route = Route.DRILLS
     }
 
     fun retakeAssessment() {

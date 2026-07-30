@@ -151,6 +151,23 @@ internal fun pawnsLost(centipawns: Int): String {
     return "$whole.$tenths"
 }
 
+/**
+ * Above this, a loss is not a material count at all — it is the difference between a normal
+ * evaluation and a mate score, so rendering it as pawns produces things like "999.3".
+ * No real material swing comes close: every piece on the board is worth about 100 pawns.
+ */
+private const val FORCED_LOSS_CENTIPAWNS = 5_000
+
+internal fun isForcedLoss(centipawns: Int): Boolean = centipawns >= FORCED_LOSS_CENTIPAWNS
+
+/** For "cost you …". A mate is not a quantity of pawns, so it is named rather than counted. */
+internal fun lossPhrase(centipawns: Int): String =
+    if (isForcedLoss(centipawns)) "the game" else "${pawnsLost(centipawns)} pawns"
+
+/** Compact form for a chip beside a move. */
+internal fun lossChip(centipawns: Int): String =
+    if (isForcedLoss(centipawns)) "allows mate" else "−${pawnsLost(centipawns)}"
+
 /** The running commentary: what the last move was worth, and what would have been better. */
 @Composable
 private fun FeedbackCard(latest: MoveAssessment?, thinking: Boolean) {
@@ -189,7 +206,7 @@ private fun FeedbackCard(latest: MoveAssessment?, thinking: Boolean) {
                 )
                 if (latest.quality != MoveQuality.BEST && latest.centipawnLoss > 0) {
                     Text(
-                        text = "−${pawnsLost(latest.centipawnLoss)}",
+                        text = lossChip(latest.centipawnLoss),
                         color = Muted,
                         fontSize = 12.sp,
                         modifier = Modifier.padding(start = 8.dp),

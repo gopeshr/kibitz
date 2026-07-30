@@ -10,6 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import gopesh.kibitz.AppViewModel
+import gopesh.kibitz.DrillViewModel
 import gopesh.kibitz.GameViewModel
 import gopesh.kibitz.Route
 import gopesh.kibitz.ui.theme.Brass
@@ -22,6 +23,7 @@ import gopesh.kibitz.ui.theme.Brass
 fun KibitzApp(
     app: AppViewModel = viewModel(),
     game: GameViewModel = viewModel(),
+    drills: DrillViewModel = viewModel(),
 ) {
     val profile = app.profile
 
@@ -68,8 +70,14 @@ fun KibitzApp(
             }
         }
 
+        Route.DRILLS -> DrillScreen(
+            viewModel = drills,
+            onDone = app::goToNewGame,
+        )
+
         Route.NEW_GAME -> NewGameScreen(
             profile = profile,
+            onPractise = app::goToDrills,
             onStart = { level, playerIsWhite ->
                 game.startGame(level, playerIsWhite)
                 app.goToPlay()
